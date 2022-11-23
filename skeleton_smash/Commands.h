@@ -7,9 +7,9 @@
 #define COMMAND_MAX_ARGS (20)
 
 class Command {
-// TODO: Add your data members
+    const char* cmd_line;
  public:
-  Command(const char* cmd_line);
+  Command(const char* cmd_line):cmd_line(cmd_line){};
   virtual ~Command();
   virtual void execute() = 0;
   //virtual void prepare();
@@ -49,8 +49,9 @@ class RedirectionCommand : public Command {
 };
 
 class ChangeDirCommand : public BuiltInCommand {
-// TODO: Add your data members public:
-  ChangeDirCommand(const char* cmd_line, char** plastPwd);
+    char** p_last_dir;
+public:
+  ChangeDirCommand(const char* cmd_line, char** plastPwd): BuiltInCommand(cmd_line),p_last_dir(plastPwd){};
   virtual ~ChangeDirCommand() {}
   void execute() override;
 };
@@ -161,6 +162,9 @@ class KillCommand : public BuiltInCommand {
 
 class SmallShell {
  private:
+    char** p_last_dir;
+    JobsList* jobs_list;
+
   // TODO: Add your data members
   SmallShell();
  public:
