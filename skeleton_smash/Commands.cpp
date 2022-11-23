@@ -84,8 +84,8 @@ void ShowPidCommand::execute() {
 }
 
 void GetCurrDirCommand::execute() {
-  char curr_path[256];
-  if (getcwd(curr_path, 256)==NULL){
+  char curr_path[PATH_MAX];
+  if (getcwd(curr_path, PATH_MAX)==NULL){
     return;
   }
   else{
@@ -93,12 +93,36 @@ void GetCurrDirCommand::execute() {
   }
 }
 
-ChangeDirCommand::ChangeDirCommand(const char *cmd_line, char **plastPwd) {
-
-}
 void ChangeDirCommand::execute() {
+    char * args[PATH_MAX];
+    int num_args = _parseCommandLine(this->cmd_line, args);
 
+    char * p_current;
+    getcwd(p_current, PATH_MAX);
+
+    if (strcmp(args[1],"-")==0){
+        chdir(*p_last_dir);
+        *p_last_dir = p_current;
+        return;
+    }
+    else {
+        chdir(args[1]);
+    }
 }
+
+void QuitCommand::execute() {
+    return;
+}
+
+
+void JobsList::addJob(Command* cmd, bool isStopped){
+    this->max_job_id++;
+    JobEntry * new_job = new JobEntry(this->max_job_id, isStopped, cmd);
+    this->jobs_vect.push_back(new_job);
+    return;
+}
+
+
 
 
 

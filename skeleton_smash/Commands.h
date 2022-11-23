@@ -19,7 +19,8 @@ class Command {
 
 class BuiltInCommand : public Command {
  public:
-  BuiltInCommand(const char* cmd_line);
+    char * cmd_line;
+    BuiltInCommand(const char* cmd_line): cmd_line(cmd_line);
   virtual ~BuiltInCommand() {}
 };
 
@@ -51,21 +52,21 @@ class RedirectionCommand : public Command {
 class ChangeDirCommand : public BuiltInCommand {
     char** p_last_dir;
 public:
-  ChangeDirCommand(const char* cmd_line, char** plastPwd): BuiltInCommand(cmd_line),p_last_dir(plastPwd){};
+  ChangeDirCommand(const char* cmd_line, char** plastPwd): BuiltInCommand(cmd_line), p_last_dir (plastPwd){}
   virtual ~ChangeDirCommand() {}
   void execute() override;
 };
 
 class GetCurrDirCommand : public BuiltInCommand {
  public:
-  GetCurrDirCommand(const char* cmd_line);
+  GetCurrDirCommand(const char* cmd_line): BuiltInCommand(cmd_line){};
   virtual ~GetCurrDirCommand() {}
   void execute() override;
 };
 
 class ShowPidCommand : public BuiltInCommand {
  public:
-  ShowPidCommand(const char* cmd_line);
+  ShowPidCommand(const char* cmd_line): BuiltInCommand(cmd_line){};
   virtual ~ShowPidCommand() {}
   void execute() override;
 };
@@ -83,9 +84,20 @@ public:
 class JobsList {
  public:
   class JobEntry {
-   // TODO: Add your data members
+      int job_id;
+      time_t enter_time;
+      bool is_stopped;
+
+      Command * cmd;
+    public:
+      JobEntry(int job_id, bool is_stopped, Command * cmd):
+            job_id(job_id), is_stopped(is_stopped),cmd(cmd) {
+            time(&this->enter_time);
+      };
+      ~JobEntry();
   };
- // TODO: Add your data members
+ int max_job_id = 0; //counts the num of jobs. Need for naming the next job
+ std::vector<JobEntry *> jobs_vect;
  public:
   JobsList();
   ~JobsList();
@@ -101,9 +113,9 @@ class JobsList {
 };
 
 class JobsCommand : public BuiltInCommand {
- // TODO: Add your data members
+     JobsList * jobs;
  public:
-  JobsCommand(const char* cmd_line, JobsList* jobs);
+  JobsCommand(const char* cmd_line, JobsList* jobs): BuiltInCommand(cmd_line), jobs(jobs){};
   virtual ~JobsCommand() {}
   void execute() override;
 };
