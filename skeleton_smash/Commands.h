@@ -14,7 +14,9 @@ class Command {
   virtual void execute() = 0;
   //virtual void prepare();
   //virtual void cleanup();
-  // TODO: Add your extra methods if needed
+  /***Our Own Methods*/
+  char * getCommand();
+  pid_t getCmdPid(){ return getpid();}
 };
 
 class BuiltInCommand : public Command {
@@ -89,15 +91,21 @@ class JobsList {
       bool is_stopped;
 
       Command * cmd;
-    public:
+  public:
+
       JobEntry(int job_id, bool is_stopped, Command * cmd):
             job_id(job_id), is_stopped(is_stopped),cmd(cmd) {
             time(&this->enter_time);
       };
       ~JobEntry();
+      bool isStopped(){return is_stopped;}
+      int getJobId(){return job_id;}
+      time_t getEnterTime(){return enter_time;}
+      Command * getCmd(){return cmd;}
   };
  int max_job_id = 0; //counts the num of jobs. Need for naming the next job
  std::vector<JobEntry *> jobs_vect;
+ JobEntry * last_stopped_job=NULL;
  public:
   JobsList();
   ~JobsList();
@@ -108,8 +116,9 @@ class JobsList {
   JobEntry * getJobById(int jobId);
   void removeJobById(int jobId);
   JobEntry * getLastJob(int* lastJobId);
-  JobEntry * getLastStoppedJob(int *jobId);
-  // TODO: Add extra methods or modify exisitng ones as needed
+  JobEntry *getLastStoppedJob(int *jobId);
+  /*** our own methods ***/
+  time_t * getEntryTime(int *jobId);
 };
 
 class JobsCommand : public BuiltInCommand {
