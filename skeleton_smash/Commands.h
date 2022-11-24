@@ -108,7 +108,7 @@ class JobsList {
   JobEntry * getJobById(int jobId);
   void removeJobById(int jobId);
   JobEntry * getLastJob(int* lastJobId);
-  JobEntry *getLastStoppedJob(int *jobId);
+  JobEntry * getLastStoppedJob(int *jobId);
   // TODO: Add extra methods or modify exisitng ones as needed
 };
 
@@ -121,9 +121,9 @@ class JobsCommand : public BuiltInCommand {
 };
 
 class ForegroundCommand : public BuiltInCommand {
- // TODO: Add your data members
+    JobsList * jobs;
  public:
-  ForegroundCommand(const char* cmd_line, JobsList* jobs);
+  ForegroundCommand(const char* cmd_line, JobsList* jobs): BuiltInCommand(cmd_line), jobs(jobs){};
   virtual ~ForegroundCommand() {}
   void execute() override;
 };

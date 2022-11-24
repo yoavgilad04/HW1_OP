@@ -53,7 +53,14 @@ int _parseCommandLine(const char* cmd_line, char** args) {
 
   FUNC_EXIT()
 }
+bool is_an_integer(string str){
+    for (char const &ch : str) {
+        if (std::isdigit(ch) == 0)
+            return false;
+    }
+    return true;
 
+}
 bool _isBackgroundComamnd(const char* cmd_line) {
   const string str(cmd_line);
   return str[str.find_last_not_of(WHITESPACE)] == '&';
@@ -94,7 +101,7 @@ void GetCurrDirCommand::execute() {
 }
 
 void ChangeDirCommand::execute() {
-    char * args[PATH_MAX];
+    char * args[COMMAND_ARGS_MAX_LENGTH];
     int num_args = _parseCommandLine(this->cmd_line, args);
 
     char * p_current;
@@ -108,6 +115,39 @@ void ChangeDirCommand::execute() {
     else {
         chdir(args[1]);
     }
+}
+
+void JobsCommand::execute() {
+    this->jobs->printJobsList();
+}
+
+void ForegroundCommand::execute(){
+    char * args[COMMAND_ARGS_MAX_LENGTH];
+    int num_args = _parseCommandLine(this->cmd_line, args);
+    int job_id_num;
+    if (num_args == 1) { // only fg was written
+        JobsList::JobEntry * last_job = this->jobs->getLastJob(&job_id_num);
+        if (last_job == nullptr){
+                //need to send an error that there aren't any jobs in the jobs list
+        }
+
+    }
+    else if (num_args == 2){ // specific job was entered
+        string job_id = args[2];
+        if (is_an_integer(job_id) == true){
+            job_id_num = stoi(job_id); // stio convert a string to number
+            JobsList::JobEntry * job = this->jobs->getJobById(job_id_num);
+            if (job == nullptr){
+                //need to send an error that the job id doesn't exist
+            }
+            // need in here to send the job the sigcont
+        }
+    }
+    else{ // in here an invalid error raised
+
+    }
+
+
 }
 
 void QuitCommand::execute() {
@@ -141,6 +181,9 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
 
   string cmd_s = _trim(string(cmd_line));
   string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
+  if (firstWord.back() == '&'){
+      firstWord.pop_back();
+  }
 //chprompt, showpid, pwd, cd, jobs, fg, bg, quit, kill
 
 
