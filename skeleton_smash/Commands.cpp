@@ -77,7 +77,54 @@ void _removeBackgroundSign(char* cmd_line) {
   cmd_line[str.find_last_not_of(WHITESPACE, idx) + 1] = 0;
 }
 
-// TODO: Add your implementation for classes in Commands.h 
+// TODO: Add your implementation for classes in Commands.h
+void ShowPidCommand::execute() {
+  pid_t curr_pid = getpid();
+  cout<<"smash pid is "<<curr_pid << std::endl;
+}
+
+void GetCurrDirCommand::execute() {
+  char curr_path[PATH_MAX];
+  if (getcwd(curr_path, PATH_MAX)==NULL){
+    return;
+  }
+  else{
+    cout<<curr_path<<endl;
+  }
+}
+
+void ChangeDirCommand::execute() {
+    char * args[PATH_MAX];
+    int num_args = _parseCommandLine(this->cmd_line, args);
+
+    char * p_current;
+    getcwd(p_current, PATH_MAX);
+
+    if (strcmp(args[1],"-")==0){
+        chdir(*p_last_dir);
+        *p_last_dir = p_current;
+        return;
+    }
+    else {
+        chdir(args[1]);
+    }
+}
+
+void QuitCommand::execute() {
+    return;
+}
+
+
+void JobsList::addJob(Command* cmd, bool isStopped){
+    this->max_job_id++;
+    JobEntry * new_job = new JobEntry(this->max_job_id, isStopped, cmd);
+    this->jobs_vect.push_back(new_job);
+    return;
+}
+
+
+
+
 
 SmallShell::SmallShell() {
 // TODO: add your implementation
@@ -91,30 +138,50 @@ SmallShell::~SmallShell() {
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
 */
 Command * SmallShell::CreateCommand(const char* cmd_line) {
-	// For example:
-/*
+
   string cmd_s = _trim(string(cmd_line));
   string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
+//chprompt, showpid, pwd, cd, jobs, fg, bg, quit, kill
 
-  if (firstWord.compare("pwd") == 0) {
-    return new GetCurrDirCommand(cmd_line);
-  }
-  else if (firstWord.compare("showpid") == 0) {
+
+  if (firstWord.compare("showpid") == 0) {
     return new ShowPidCommand(cmd_line);
   }
-  else if ...
-  .....
+  else if (firstWord.compare("pwd") == 0) {
+    return new GetCurrDirCommand(cmd_line);
+  }
+  else if (firstWord.compare("cd") == 0) {
+    return new ChangeDirCommand(cmd_line, p_last_dir);
+  }
+  else if (firstWord.compare("jobs") == 0) {
+    return new JobsCommand(cmd_line, jobs_list);
+  }
+  else if (firstWord.compare("fg") == 0) {
+    return new ForegroundCommand(cmd_line, jobs_list);
+  }
+  else if (firstWord.compare("bg") == 0) {
+    return new BackgroundCommand(cmd_line, jobs_list);
+  }
+  else if (firstWord.compare("quit") == 0) {
+    return new QuitCommand(cmd_line, jobs_list)
+  }
+  else if (firstWord.compare("kill") == 0) {
+    return new KillCommand(cmd_line, jobs_list);
+  }
+  else if (firstWord.compare("fare") == 0) {
+    return new FareCommand(cmd_line);
+  }
+
   else {
     return new ExternalCommand(cmd_line);
   }
-  */
+
   return nullptr;
 }
 
 void SmallShell::executeCommand(const char *cmd_line) {
   // TODO: Add your implementation here
-  // for example:
-  // Command* cmd = CreateCommand(cmd_line);
-  // cmd->execute();
+   Command* cmd = CreateCommand(cmd_line);
+   cmd->execute();
   // Please note that you must fork smash process for some commands (e.g., external commands....)
 }
