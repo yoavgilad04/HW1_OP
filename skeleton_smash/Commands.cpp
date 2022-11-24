@@ -119,11 +119,53 @@ void JobsList::addJob(Command* cmd, bool isStopped){
     this->max_job_id++;
     JobEntry * new_job = new JobEntry(this->max_job_id, isStopped, cmd);
     this->jobs_vect.push_back(new_job);
-    return;
+    if(isStopped){
+        this->last_stopped_job = new_job;
+    }
 }
 
+/**Remember: calc curr time every single time*/
+void JobsList::printJobsList(){
+    for (auto it = jobs_vect.begin();  it!= jobs_vect.end(); it++) {
+        time_t * curr;
+        time(curr);
+        time_t diff = difftime((*it)->getEnterTime(),*curr);
+        if((*it)->isStopped()){
+            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommand()<<" : "<<(*it)->getCmd()->getCmdPid()
+            <<' '<< diff <<' '<< "(stopped)"<<endl;
+        }
+        else{
+            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommand()<<" : "<<(*it)->getCmd()->getCmdPid()
+                <<' '<< diff <<' '<<endl;
+        }
+    }
+}
 
+void JobsList::killAllJobs(){
+    for (auto it = jobs_vect.begin();  it!= jobs_vect.end(); it++){
+        
+    }
+}
 
+void JobsList::removeFinishedJobs(){
+
+}
+
+JobsList::JobEntry * JobsList::getJobById(int jobId){
+
+}
+
+void JobsList::removeJobById(int jobId){
+
+}
+
+JobsList::JobEntry * JobsList::getLastJob(int* lastJobId){
+
+}
+
+JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId){
+
+}
 
 
 SmallShell::SmallShell() {
