@@ -85,8 +85,8 @@ void ShowPidCommand::execute() {
 }
 
 void GetCurrDirCommand::execute() {
-  char * curr_path= new char(PATH_MAX);
-  if (getcwd(curr_path, (size_t)PATH_MAX)==NULL){
+  char * curr_path= new char(_PC_PATH_MAX);
+  if (getcwd(curr_path, (size_t)_PC_PATH_MAX)==NULL){
     return;
   }
   else{
@@ -95,11 +95,11 @@ void GetCurrDirCommand::execute() {
 }
 
 void ChangeDirCommand::execute() {
-    char * args = new char (PATH_MAX);
+    char * args = new char (_PC_PATH_MAX);
     int num_args = _parseCommandLine(this->getCommand(), &args);
 
     char * p_current;
-    getcwd(p_current, PATH_MAX);
+    getcwd(p_current, _PC_PATH_MAX);
 
     if (args[1] == '-'){
         chdir(*p_last_dir);
@@ -116,44 +116,44 @@ void QuitCommand::execute() {
 }
 
 
-void JobsList::addJob(Command* cmd, bool isStopped){
+void JobsList::addJob(Command* cmd, pid_t job_pid, bool isStopped){
     removeFinishedJobs();
     this->max_job_id++;
-    JobEntry * new_job = new JobEntry(this->max_job_id, isStopped, cmd);
+    JobEntry * new_job = new JobEntry(this->max_job_id, job_pid, isStopped, cmd);
     this->jobs_vect.push_back(new_job);
-    if(isStopped){
-        this->last_stopped_job = new_job;
-    }
+
 }
 
 void JobsList::printJobsList(){
     removeFinishedJobs();
 
-    for (auto it = jobs_vect.begin();  it!= jobs_vect.end(); it++) {
+    for (auto it = jobs_vect.begin();  it!= jobs_vect.end(); ++it) {
         time_t * curr;
         time(curr);
         time_t diff = difftime((*it)->getEnterTime(),*curr);
         if((*it)->isStopped()){
-            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommand()<<" : "<<(*it)->getCmd()->getCmdPid()
+            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommand()<<" : "<<(*it)->getJobPid()
             <<' '<< diff <<' '<< "(stopped)"<<endl;
         }
         else{
-            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommand()<<" : "<<(*it)->getCmd()->getCmdPid()
+            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommand()<<" : "<<(*it)->getJobPid()
                 <<' '<< diff <<' '<<endl;
         }
     }
 }
 
 void JobsList::killAllJobs(){
-    jobs_vect.clear();
-    finished_jobs.clear();
+    for (auto it = jobs_vect.begin(); it!=jobs_vect.end() ; ++it) {
+        kill((*it)->getJobPid(), SIGKILL);
+        jobs_vect.erase(it);
+    }
 }
 
 void JobsList::removeFinishedJobs() {
-    for (auto it = finished_jobs.rbegin(); it!= finished_jobs.rend(); it++) {
-        std::swap(**it,jobs_vect.back());
-        jobs_vect.pop_back();
-        finished_jobs.pop_back();
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+        if((*it)->isFinished()){
+            jobs_vect.erase(it);
+        }
     }
 }
 JobsList::JobEntry * JobsList::getJobById(int jobId) {
@@ -166,25 +166,47 @@ JobsList::JobEntry * JobsList::getJobById(int jobId) {
     return job;
 }
 void JobsList::removeJobById(int jobId){
-    JobEntry ** p_job= nullptr;
+    JobEntry * to_remove= nullptr;
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+        to_remove = *it;
         if ((*it)->getJobId()==jobId){
-            p_job = static_cast<JobEntry*>(it);
+                jobs_vect.erase(it);
+                break;
         }
     }
-    if(p_job){
-        finished_jobs.push_back(p_job);
-    }
 }
-
 JobsList::JobEntry * JobsList::getLastJob(int* lastJobId){
-
-
+    //last and not finished job
+    JobEntry * last_stopped = nullptr;
+    for (auto it = jobs_vect.rbegin(); it != jobs_vect.rend(); it++) {
+        if (!(*it)->isFinished()){
+            return *it;
+        }
+    }
 }
 
 JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId){
-
+    JobEntry * last_stopped = nullptr;
+//find last stopped and not finished job (reversed iterator)
+    for (auto it = jobs_vect.rbegin(); it != jobs_vect.rend(); it++) {
+        if ((*it)->isStopped() && !(*it)->isFinished()){
+            last_stopped = *it;
+            break;
+        }
+    }
+    return last_stopped;
 }
+
+time_t JobsList::getEntryTime(int jobId) {
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+        if ((*it)->getJobId()==jobId){
+            return (*it)->getEnterTime();
+        }
+    }
+    return 0;
+}
+
+
 
 
 SmallShell::SmallShell() {
