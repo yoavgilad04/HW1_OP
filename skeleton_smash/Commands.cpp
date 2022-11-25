@@ -5,11 +5,11 @@
 #include <sstream>
 #include <sys/wait.h>
 #include <iomanip>
+#include <climits>
 #include "Commands.h"
-#include <limits.h>
 
 using namespace std;
-
+#define SYS_FAIL -1
 const std::string WHITESPACE = " \n\r\t\f\v";
 
 #if 0
@@ -29,18 +29,21 @@ string _ltrim(const std::string& s)
   return (start == std::string::npos) ? "" : s.substr(start);
 }
 
+
 string _rtrim(const std::string& s)
 {
   size_t end = s.find_last_not_of(WHITESPACE);
   return (end == std::string::npos) ? "" : s.substr(0, end + 1);
 }
 
+
 string _trim(const std::string& s)
 {
   return _rtrim(_ltrim(s));
 }
 
-int _parseCommandLine(const char* cmd_line, char** args) {
+
+int _parseCommandLine(const char* cmd_line, char** args) { ////!!!!!!! remember to free everytime calling this function
   FUNC_ENTRY()
   int i = 0;
   std::istringstream iss(_trim(string(cmd_line)).c_str());
@@ -54,14 +57,23 @@ int _parseCommandLine(const char* cmd_line, char** args) {
 
   FUNC_EXIT()
 }
-bool is_an_integer(string str){
-    for (char const &ch : str) {
+
+
+bool is_an_integer(string str)
+{
+    for (char const &ch : str)
+    {
         if (std::isdigit(ch) == 0)
             return false;
     }
     return true;
-
 }
+
+bool startsWith(const std::string &str, const std::string &prefix)
+{
+    return str.size() >= prefix.size() && str.compare(0, prefix.size(), prefix) == 0;
+}
+
 bool _isBackgroundComamnd(const char* cmd_line) {
   const string str(cmd_line);
   return str[str.find_last_not_of(WHITESPACE)] == '&';
@@ -92,8 +104,8 @@ void ShowPidCommand::execute() {
 }
 
 void GetCurrDirCommand::execute() {
-  char * curr_path= new char(PATH_MAX);
-  if (getcwd(curr_path, (size_t)PATH_MAX)==NULL){
+  char curr_path[PATH_MAX];
+  if (getcwd(curr_path, PATH_MAX)==NULL){
     return;
   }
   else{
@@ -103,7 +115,7 @@ void GetCurrDirCommand::execute() {
 
 void ChangeDirCommand::execute() {
     char * args[COMMAND_ARGS_MAX_LENGTH];
-    int num_args = _parseCommandLine(this->cmd_line, args);
+    int num_args = _parseCommandLine(this->getCommandLine(), args);
 
     char * p_current;
     getcwd(p_current, PATH_MAX);
@@ -114,8 +126,60 @@ void ChangeDirCommand::execute() {
         return;
     }
     else {
-        chdir(args+1);
+        chdir(args[1]);
     }
+}
+
+void JobsCommand::execute() {
+    this->jobs->printJobsList();
+}
+
+void ForegroundCommand::execute()
+{
+    char * args[COMMAND_ARGS_MAX_LENGTH];
+    int num_args = _parseCommandLine(this->getCommandLine(), args);
+    int job_id_num;
+    JobsList::JobEntry* job_to_fg;
+    if (num_args == 1) // only fg was written
+    {
+        job_to_fg = this->jobs->getLastJob(&job_id_num);
+        if (job_to_fg == nullptr)
+        {
+            //send an error that the jobs list is empty
+        }
+    }
+    else if (num_args == 2) // specific job was entered
+    {
+        string job_id = args[2];
+        if (is_an_integer(job_id) == false)
+        {
+            //error that job id given is not a number
+        }
+            job_id_num = stoi(job_id); // stio convert a string to number
+            job_to_fg = this->jobs->getJobById(job_id_num);
+            if (job_to_fg == nullptr){
+                //need to send an error that the job id doesn't exist
+            }
+    }
+    else
+    {
+        // error invailid number of arguments were passed
+        //remmember to exit after an error
+    }
+
+    pid_t pid = job_to_fg->getJobPid();
+    if (kill(pid, SIGCONT) == SYS_FAIL)
+    {
+        //error: couldn't send sigcont to the pid
+    }
+    else
+    {
+        if(waitpid(pid, NULL, WCONTINUED) == SYS_FAIL)
+        {
+            //error: wait pid failed
+        }
+    }
+    cout << this->getCommandLine()<<": "<< pid; //success
 }
 
 void QuitCommand::execute() {
@@ -124,7 +188,6 @@ void QuitCommand::execute() {
 
 
 void JobsList::addJob(Command* cmd, bool isStopped){
-    removeFinishedJobs();
     this->max_job_id++;
     JobEntry * new_job = new JobEntry(this->max_job_id, isStopped, cmd);
     this->jobs_vect.push_back(new_job);
@@ -135,59 +198,40 @@ void JobsList::addJob(Command* cmd, bool isStopped){
 
 /**Remember: calc curr time every single time*/
 void JobsList::printJobsList(){
-    removeFinishedJobs();
-
     for (auto it = jobs_vect.begin();  it!= jobs_vect.end(); it++) {
         time_t * curr;
         time(curr);
         time_t diff = difftime((*it)->getEnterTime(),*curr);
         if((*it)->isStopped()){
-            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommand()<<" : "<<(*it)->getCmd()->getCmdPid()
-            <<' '<< diff <<' '<< "(stopped)"<<endl;
+//            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommandLine()<<" : "<<(*it)->getCmd()->getCmdPid()
+//            <<' '<< diff <<' '<< "(stopped)"<<endl;
         }
         else{
-            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommand()<<" : "<<(*it)->getCmd()->getCmdPid()
-                <<' '<< diff <<' '<<endl;
+//            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommandLine()<<" : "<<(*it)->getCmd()->getCmdPid()
+//                <<' '<< diff <<' '<<endl;
         }
     }
 }
 
 void JobsList::killAllJobs(){
-    jobs_vect.clear();
-    finished_jobs.clear();
+    for (auto it = jobs_vect.begin();  it!= jobs_vect.end(); it++){
+        
+    }
 }
 
-void JobsList::removeFinishedJobs() {
-    for (auto it = finished_jobs.rbegin(); it!= finished_jobs.rend(); it++) {
-        std::swap(**it,jobs_vect.back());
-        jobs_vect.pop_back();
-        finished_jobs.pop_back();
-    }
+void JobsList::removeFinishedJobs(){
+
 }
-JobsList::JobEntry * JobsList::getJobById(int jobId) {
-    JobEntry * job= nullptr;
-    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
-        if ((*it)->getJobId()==jobId){
-            job = *it;
-        }
-    }
-    return job;
+
+JobsList::JobEntry * JobsList::getJobById(int jobId){
+
 }
 
 void JobsList::removeJobById(int jobId){
-    JobEntry ** p_job= nullptr;
-    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
-        if ((*it)->getJobId()==jobId){
-            p_job = static_cast<JobEntry*>(it);
-        }
-    }
-    if(p_job){
-        finished_jobs.push_back(p_job);
-    }
+
 }
 
 JobsList::JobEntry * JobsList::getLastJob(int* lastJobId){
-
 
 }
 
@@ -232,22 +276,22 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
   else if (firstWord.compare("fg") == 0) {
     return new ForegroundCommand(cmd_line, jobs_list);
   }
-  else if (firstWord.compare("bg") == 0) {
-    return new BackgroundCommand(cmd_line, jobs_list);
-  }
-  else if (firstWord.compare("quit") == 0) {
-    return new QuitCommand(cmd_line, jobs_list);
-  }
-  else if (firstWord.compare("kill") == 0) {
-    return new KillCommand(cmd_line, jobs_list);
-  }
-  else if (firstWord.compare("fare") == 0) {
-    return new FareCommand(cmd_line);
-  }
+//  else if (firstWord.compare("bg") == 0) {
+//    return new BackgroundCommand(cmd_line, jobs_list);
+//  }
+//  else if (firstWord.compare("quit") == 0) {
+//    return new QuitCommand(cmd_line, jobs_list);
+//  }
+//  else if (firstWord.compare("kill") == 0) {
+//    return new KillCommand(cmd_line, jobs_list);
+//  }
+//  else if (firstWord.compare("fare") == 0) {
+//    return new FareCommand(cmd_line);
+//  }
 
-  else {
-    return new ExternalCommand(cmd_line);
-  }
+//  else {
+//    return new ExternalCommand(cmd_line);
+//  }
 
   return nullptr;
 }
@@ -255,6 +299,9 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
 void SmallShell::executeCommand(const char *cmd_line) {
   // TODO: Add your implementation here
    Command* cmd = CreateCommand(cmd_line);
+   if (cmd == nullptr){ //if unrecognize command was entered
+       return;
+   }
    cmd->execute();
   // Please note that you must fork smash process for some commands (e.g., external commands....)
 }
