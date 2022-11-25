@@ -108,12 +108,14 @@ void ShowPidCommand::execute() {
 }
 
 void GetCurrDirCommand::execute() {
-  char * curr_path= new char(_PC_PATH_MAX);
-  if (getcwd(curr_path, (size_t)_PC_PATH_MAX)==NULL){
-    return;
+  char * curr_path= new char(PATH_MAX);
+  if (getcwd(curr_path, (size_t)PATH_MAX) == nullptr){
+      delete curr_path;
+      return;
   }
   else{
     cout<<curr_path<<endl;
+    delete curr_path;
   }
 }
 
@@ -204,6 +206,19 @@ void JobsList::addJob(Command* cmd, pid_t job_pid, bool isStopped){
     JobEntry * new_job = new JobEntry(this->max_job_id, job_pid, isStopped, cmd);
     this->jobs_vect.push_back(new_job);
 
+    pid_t pid = job_to_fg->getJobPid();
+    if (kill(pid, SIGCONT) == SYS_FAIL)
+    {
+        //error: couldn't send sigcont to the pid
+    }
+    else
+    {
+        if(waitpid(pid, NULL, WCONTINUED) == SYS_FAIL)
+        {
+            //error: wait pid failed
+        }
+    }
+    cout << this->getCommand()<<": "<< pid; //success
 }
 
 /***printJobsList- this function prints all the jobs that currently in JobList */
