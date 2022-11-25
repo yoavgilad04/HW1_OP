@@ -1,3 +1,0 @@
-/home/student/tmp/tmp.73Osz9ENcb/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/home/student/tmp/tmp.73Osz9ENcb/cmake-build-debug/CMakeFiles/skeleton_smash.dir
-/home/student/tmp/tmp.73Osz9ENcb/cmake-build-debug/CMakeFiles/edit_cache.dir
