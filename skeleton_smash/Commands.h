@@ -15,14 +15,12 @@ class Command {
   //virtual void prepare();
   //virtual void cleanup();
   /***Our Own Methods*/
-  char * getCommand();
-  pid_t getCmdPid(){ return getpid();}
+  const char * getCommand(){return cmd_line;}
 };
 
 class BuiltInCommand : public Command {
  public:
-    char * cmd_line;
-    BuiltInCommand(const char* cmd_line): cmd_line(cmd_line);
+    BuiltInCommand(const char* cmd_line): Command(cmd_line){};
   virtual ~BuiltInCommand() {}
 };
 
@@ -104,7 +102,8 @@ class JobsList {
   };
  int max_job_id = 0; //counts the num of jobs. Need for naming the next job
  std::vector<JobEntry *> jobs_vect;
- JobEntry * last_stopped_job=NULL;
+ std::vector<JobEntry **> finished_jobs;
+ JobEntry * last_stopped_job= nullptr;
  public:
   JobsList();
   ~JobsList();
