@@ -10,18 +10,19 @@ class Command {
     const char* cmd_line;
  public:
   Command(const char* cmd_line):cmd_line(cmd_line){};
-  virtual ~Command();
+  virtual ~Command(){};
   virtual void execute() = 0;
   //virtual void prepare();
   //virtual void cleanup();
   /***Our Own Methods*/
-  const char * getCommand(){return cmd_line;}
+  const char * getCommandLine(){return cmd_line;}
+  std::string getCommand();
 };
 
 class BuiltInCommand : public Command {
  public:
     BuiltInCommand(const char* cmd_line): Command(cmd_line){};
-  virtual ~BuiltInCommand() {}
+    virtual ~BuiltInCommand() {}
 };
 
 class ExternalCommand : public Command {
@@ -140,7 +141,7 @@ class ForegroundCommand : public BuiltInCommand {
 };
 
 class BackgroundCommand : public BuiltInCommand {
- // TODO: Add your data members
+    JobsList * jobs;
  public:
   BackgroundCommand(const char* cmd_line, JobsList* jobs);
   virtual ~BackgroundCommand() {}
