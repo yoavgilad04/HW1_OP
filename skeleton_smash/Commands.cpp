@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <iomanip>
 #include "Commands.h"
+#include <limits.h>
 
 using namespace std;
 
@@ -91,8 +92,8 @@ void ShowPidCommand::execute() {
 }
 
 void GetCurrDirCommand::execute() {
-  char curr_path[PATH_MAX];
-  if (getcwd(curr_path, PATH_MAX)==NULL){
+  char * curr_path= new char(PATH_MAX);
+  if (getcwd(curr_path, (size_t)PATH_MAX)==NULL){
     return;
   }
   else{
@@ -113,41 +114,8 @@ void ChangeDirCommand::execute() {
         return;
     }
     else {
-        chdir(args[1]);
+        chdir(args+1);
     }
-}
-
-void JobsCommand::execute() {
-    this->jobs->printJobsList();
-}
-
-void ForegroundCommand::execute(){
-    char * args[COMMAND_ARGS_MAX_LENGTH];
-    int num_args = _parseCommandLine(this->cmd_line, args);
-    int job_id_num;
-    if (num_args == 1) { // only fg was written
-        JobsList::JobEntry * last_job = this->jobs->getLastJob(&job_id_num);
-        if (last_job == nullptr){
-                //need to send an error that there aren't any jobs in the jobs list
-        }
-
-    }
-    else if (num_args == 2){ // specific job was entered
-        string job_id = args[2];
-        if (is_an_integer(job_id) == true){
-            job_id_num = stoi(job_id); // stio convert a string to number
-            JobsList::JobEntry * job = this->jobs->getJobById(job_id_num);
-            if (job == nullptr){
-                //need to send an error that the job id doesn't exist
-            }
-            // need in here to send the job the sigcont
-        }
-    }
-    else{ // in here an invalid error raised
-
-    }
-
-
 }
 
 void QuitCommand::execute() {
@@ -156,6 +124,7 @@ void QuitCommand::execute() {
 
 
 void JobsList::addJob(Command* cmd, bool isStopped){
+    removeFinishedJobs();
     this->max_job_id++;
     JobEntry * new_job = new JobEntry(this->max_job_id, isStopped, cmd);
     this->jobs_vect.push_back(new_job);
@@ -166,6 +135,8 @@ void JobsList::addJob(Command* cmd, bool isStopped){
 
 /**Remember: calc curr time every single time*/
 void JobsList::printJobsList(){
+    removeFinishedJobs();
+
     for (auto it = jobs_vect.begin();  it!= jobs_vect.end(); it++) {
         time_t * curr;
         time(curr);
@@ -182,24 +153,41 @@ void JobsList::printJobsList(){
 }
 
 void JobsList::killAllJobs(){
-    for (auto it = jobs_vect.begin();  it!= jobs_vect.end(); it++){
-        
+    jobs_vect.clear();
+    finished_jobs.clear();
+}
+
+void JobsList::removeFinishedJobs() {
+    for (auto it = finished_jobs.rbegin(); it!= finished_jobs.rend(); it++) {
+        std::swap(**it,jobs_vect.back());
+        jobs_vect.pop_back();
+        finished_jobs.pop_back();
     }
 }
-
-void JobsList::removeFinishedJobs(){
-
-}
-
-JobsList::JobEntry * JobsList::getJobById(int jobId){
-
+JobsList::JobEntry * JobsList::getJobById(int jobId) {
+    JobEntry * job= nullptr;
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+        if ((*it)->getJobId()==jobId){
+            job = *it;
+        }
+    }
+    return job;
 }
 
 void JobsList::removeJobById(int jobId){
-
+    JobEntry ** p_job= nullptr;
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+        if ((*it)->getJobId()==jobId){
+            p_job = static_cast<JobEntry*>(it);
+        }
+    }
+    if(p_job){
+        finished_jobs.push_back(p_job);
+    }
 }
 
 JobsList::JobEntry * JobsList::getLastJob(int* lastJobId){
+
 
 }
 
@@ -248,7 +236,7 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
     return new BackgroundCommand(cmd_line, jobs_list);
   }
   else if (firstWord.compare("quit") == 0) {
-    return new QuitCommand(cmd_line, jobs_list)
+    return new QuitCommand(cmd_line, jobs_list);
   }
   else if (firstWord.compare("kill") == 0) {
     return new KillCommand(cmd_line, jobs_list);
