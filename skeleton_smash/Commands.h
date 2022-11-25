@@ -5,9 +5,38 @@
 
 #define COMMAND_ARGS_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
+using namespace std;
+
+class SmashErrors
+{
+    string pre_error = "smash error: ";
+public:
+    void PrintJobIDDoesntExits(string cmd,int job_id )
+    {cerr <<this->pre_error<<cmd<<": "<<"job id "<<job_id<<" does not exist";}
+
+    void PrintJobsListEmpty(string cmd)
+    {cerr <<this->pre_error<<cmd<<": jobs list is empty";}
+
+    void PrintInvalidArgs(string cmd)
+    {cerr <<this->pre_error<<cmd<<": invalid arguments";}
+
+    void PrintNoStoppedJobs(string cmd)
+    {cerr <<this->pre_error<<cmd<<": there is no stopped jobs to resume";}
+
+    void PrintJobAlreadyRunningInBG(string cmd, int job_id)
+    {cerr <<this->pre_error<<cmd<<": job id "<<job_id<<" is already running in the background";}
+
+    void PrintTooManyArgs(string cmd)
+    {cerr <<this->pre_error<<cmd<<": too many argumnets";}
+
+    void PrintOLDPWDFail(string cmd)
+    {cerr <<this->pre_error<<cmd<<": OLDPWD not set";}
+};
 
 class Command {
     const char* cmd_line;
+protected:
+    SmashErrors err;
  public:
   Command(const char* cmd_line):cmd_line(cmd_line){};
   virtual ~Command(){};
@@ -135,7 +164,7 @@ class JobsCommand : public BuiltInCommand {
 class ForegroundCommand : public BuiltInCommand {
     JobsList * jobs;
  public:
-  ForegroundCommand(const char* cmd_line, JobsList* jobs);
+  ForegroundCommand(const char* cmd_line, JobsList* jobs): BuiltInCommand(cmd_line), jobs(jobs){};
   virtual ~ForegroundCommand() {}
   void execute() override;
 };
@@ -184,26 +213,27 @@ class KillCommand : public BuiltInCommand {
   void execute() override;
 };
 
+
 class SmallShell {
  private:
     char** p_last_dir;
     JobsList* jobs_list;
-
-  // TODO: Add your data members
-  SmallShell();
- public:
-  Command *CreateCommand(const char* cmd_line);
-  SmallShell(SmallShell const&)      = delete; // disable copy ctor
-  void operator=(SmallShell const&)  = delete; // disable = operator
-  static SmallShell& getInstance() // make SmallShell singleton
-  {
-    static SmallShell instance; // Guaranteed to be destroyed.
-    // Instantiated on first use.
-    return instance;
-  }
-  ~SmallShell();
-  void executeCommand(const char* cmd_line);
-  // TODO: add extra methods as needed
+    // TODO: Add your data members
+public:
+    SmallShell();
+    Command *CreateCommand(const char* cmd_line);
+    SmallShell(SmallShell const&)      = delete; // disable copy ctor
+      void operator=(SmallShell const&)  = delete; // disable = operator
+      static SmallShell& getInstance() // make SmallShell singleton
+      {
+        static SmallShell instance; // Guaranteed to be destroyed.
+        // Instantiated on first use.
+        return instance;
+      }
+      ~SmallShell();
+      void executeCommand(const char* cmd_line);
+    // TODO: add extra methods as needed
 };
+
 
 #endif //SMASH_COMMAND_H_

@@ -56,6 +56,17 @@ int _parseCommandLine(const char* cmd_line, char** args) { ////!!!!!!! remember 
   FUNC_EXIT()
 }
 
+void free_args(char** args, int args_size)
+{
+    for (int i=0; i<args_size; i++)
+    {
+        if(!args[i])
+        {
+            free(args[i]);
+        }
+    }
+}
+
 string Command::getCommand(){
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
@@ -108,17 +119,19 @@ void ShowPidCommand::execute() {
 }
 
 void GetCurrDirCommand::execute() {
-  char * curr_path= new char(PATH_MAX);
-  if (getcwd(curr_path, (size_t)PATH_MAX)==NULL){
+  char * curr_path= new char[PATH_MAX];
+  if (getcwd(curr_path, (size_t)PATH_MAX) == nullptr){
       delete curr_path;
+      return;
   }
   else{
     cout<<curr_path<<endl;
+    delete curr_path;
   }
 }
 
 void ChangeDirCommand::execute() {
-    char * args = new char (PATH_MAX);
+    char * args = new char [PATH_MAX];
     int num_args = _parseCommandLine(this->getCommandLine(), &args);
 
     char * p_current;
@@ -142,6 +155,7 @@ void QuitCommand::execute() {
 
 void ForegroundCommand::execute()
 {
+    string cmd = this->getCommand();
     char * args[COMMAND_ARGS_MAX_LENGTH];
     int num_args = _parseCommandLine(this->getCommandLine(), args);
     int job_id_num;
@@ -151,40 +165,53 @@ void ForegroundCommand::execute()
         job_to_fg = this->jobs->getLastJob(&job_id_num);
         if (job_to_fg == nullptr)
         {
-            //send an error that the jobs list is empty
+            this->err.PrintJobsListEmpty(cmd);
+            free_args(args, num_args);
+            return;
         }
     }
     else if (num_args == 2) // specific job was entered
     {
         string job_id = args[2];
-        if (is_an_integer(job_id) == false)
+        if (!is_an_integer(job_id))
         {
-            //error that job id given is not a number
+            this->err.PrintInvalidArgs(cmd);
+            free_args(args, num_args);
+            return;
         }
         job_id_num = stoi(job_id); // stio convert a string to number
         job_to_fg = this->jobs->getJobById(job_id_num);
-        if (job_to_fg == nullptr){
-            //need to send an error that the job id doesn't exist
+        if (job_to_fg == nullptr)
+        {
+            this->err.PrintJobIDDoesntExits(cmd, job_id_num);
+            free_args(args, num_args);
+            return;
         }
     }
     else
     {
-        // error invailid number of arguments were passed
-        //remmember to exit after an error
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
     }
 
     pid_t pid = job_to_fg->getJobPid();
     if (kill(pid, SIGCONT) == SYS_FAIL)
     {
         //error: couldn't send sigcont to the pid
+        free_args(args, num_args);
+        return;
     }
     else
     {
         if(waitpid(pid, NULL, WCONTINUED) == SYS_FAIL)
         {
             //error: wait pid failed
+            free_args(args, num_args);
+            return;
         }
     }
+    free_args(args, num_args);
     cout << this->getCommandLine()<<": "<< pid<< endl; //success
 }
 
@@ -198,10 +225,10 @@ void ForegroundCommand::execute()
  * Run in the Background (bg command or &)
  * Stopped Process
  */
-void JobsList::addJob(Command* cmd, pid_t job_pid, bool isStopped){
+void JobsList::addJob(Command* cmd, pid_t job_pid, bool isStopped) {
     removeFinishedJobs();
     this->max_job_id++;
-    JobEntry * new_job = new JobEntry(this->max_job_id, job_pid, isStopped, cmd);
+    JobEntry *new_job = new JobEntry(this->max_job_id, job_pid, isStopped, cmd);
     this->jobs_vect.push_back(new_job);
 
 }
@@ -346,7 +373,7 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
     return new JobsCommand(cmd_line, jobs_list);
   }
   else if (firstWord.compare("fg") == 0) {
-    //return new ForegroundCommand(cmd_line, jobs_list);
+    return new ForegroundCommand(cmd_line, jobs_list);
   }
   else if (firstWord.compare("bg") == 0) {
     //return new BackgroundCommand(cmd_line, jobs_list);
