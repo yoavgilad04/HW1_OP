@@ -55,66 +55,60 @@ int _parseCommandLine(const char* cmd_line, char** args) { ////!!!!!!! remember 
   FUNC_EXIT()
 }
 
-void free_args(char** args, int args_size)
-{
-    for (int i=0; i<args_size; i++)
-    {
-        if(!args[i])
-        {
+void free_args(char **args, int args_size) {
+    for (int i = 0; i < args_size; i++) {
+        if (!args[i]) {
             free(args[i]);
         }
     }
 }
 
-string Command::getCommand(){
+string Command::getCommand() {
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
     return firstWord;
 }
 
-bool is_an_integer(string str)
-{
-    for (char const &ch : str)
-    {
+bool is_an_integer(string str) {
+    for (char const &ch : str) {
         if (std::isdigit(ch) == 0)
             return false;
     }
     return true;
 }
 
-bool startsWith(const std::string &str, const std::string &prefix)
-{
+bool startsWith(const std::string &str, const std::string &prefix) {
     return str.size() >= prefix.size() && str.compare(0, prefix.size(), prefix) == 0;
 }
 
-bool _isBackgroundComamnd(const char* cmd_line) {
-  const string str(cmd_line);
-  return str[str.find_last_not_of(WHITESPACE)] == '&';
+bool _isBackgroundComamnd(const char *cmd_line) {
+    const string str(cmd_line);
+    return str[str.find_last_not_of(WHITESPACE)] == '&';
 }
 
-void _removeBackgroundSign(char* cmd_line) {
-  const string str(cmd_line);
-  // find last character other than spaces
-  unsigned int idx = str.find_last_not_of(WHITESPACE);
-  // if all characters are spaces then return
-  if (idx == string::npos) {
-    return;
-  }
-  // if the command line does not end with & then return
-  if (cmd_line[idx] != '&') {
-    return;
-  }
-  // replace the & (background sign) with space and then remove all tailing spaces.
-  cmd_line[idx] = ' ';
-  // truncate the command line string up to the last non-space character
-  cmd_line[str.find_last_not_of(WHITESPACE, idx) + 1] = 0;
+void _removeBackgroundSign(char *cmd_line) {
+    const string str(cmd_line);
+    // find last character other than spaces
+    unsigned int idx = str.find_last_not_of(WHITESPACE);
+    // if all characters are spaces then return
+    if (idx == string::npos) {
+        return;
+    }
+    // if the command line does not end with & then return
+    if (cmd_line[idx] != '&') {
+        return;
+    }
+    // replace the & (background sign) with space and then remove all tailing spaces.
+    cmd_line[idx] = ' ';
+    // truncate the command line string up to the last non-space character
+    cmd_line[str.find_last_not_of(WHITESPACE, idx) + 1] = 0;
 }
 
 /***--------------Build In Commands--------------***/
 
 void ShowPidCommand::execute() {
-  pid_t curr_pid = getpid();
-  cout<<"smash pid is "<<curr_pid << std::endl;
+    pid_t curr_pid = getpid();
+    cout << "smash pid is " << curr_pid << std::endl;
 }
 
 void GetCurrDirCommand::execute() {
@@ -199,26 +193,26 @@ void QuitCommand::execute() {
     return;
 }
 
-/***ForegroundCommand implementation*/
+/***ForegroundCommand implementation
+ * this function brings a stopped process or a process that runs
+ * in the background to the foreground
+ * */
 
-void ForegroundCommand::execute()
-{
+void ForegroundCommand::execute() {
     string cmd = this->getCommand();
-    char * args[COMMAND_ARGS_MAX_LENGTH];
+    char *args[COMMAND_ARGS_MAX_LENGTH];
     int num_args = _parseCommandLine(this->getCommandLine(), args);
     int job_id_num;
-    JobsList::JobEntry* job_to_fg;
+    JobsList::JobEntry *job_to_fg;
     if (num_args == 1) // only fg was written
     {
         job_to_fg = this->jobs->getLastJob(&job_id_num);
-        if (job_to_fg == nullptr)
-        {
+        if (job_to_fg == nullptr) {
             this->err.PrintJobsListEmpty(cmd);
             free_args(args, num_args);
             return;
         }
-    }
-    else if (num_args == 2) // specific job was entered
+    } else if (num_args == 2) // specific job was entered
     {
         string job_id = args[1];
         if (!is_an_integer(job_id))
@@ -229,8 +223,7 @@ void ForegroundCommand::execute()
         }
         job_id_num = stoi(job_id); // stio convert a string to number
         job_to_fg = this->jobs->getJobById(job_id_num);
-        if (job_to_fg == nullptr)
-        {
+        if (job_to_fg == nullptr) {
             this->err.PrintJobIDDoesntExits(cmd, job_id_num);
             free_args(args, num_args);
             return;
@@ -244,6 +237,7 @@ void ForegroundCommand::execute()
     }
 
     pid_t pid = job_to_fg->getJobPid();
+    cout << this->getCommandLine() << ": " << pid << endl; //success
     if (kill(pid, SIGCONT) == SYS_FAIL)
     {
         this->err.PrintSysFailError("kill");
@@ -252,7 +246,7 @@ void ForegroundCommand::execute()
     }
     else
     {
-        if(waitpid(pid, NULL, WCONTINUED) == SYS_FAIL)
+        if(waitpid(pid, nullptr, WCONTINUED) == SYS_FAIL)
         {
             this->err.PrintSysFailError("waitpid");
             free_args(args, num_args);
@@ -260,20 +254,77 @@ void ForegroundCommand::execute()
         }
     }
     free_args(args, num_args);
-    cout << this->getCommandLine()<<": "<< pid<< endl; //success
 }
 
 
-/***BackgroundCommand implementation*/
+/***BackgroundCommand implementation
+ * this function resumes one of the stopped processes in the background
+ * */
+void BackgroundCommand::execute() {
+    string cmd = this->getCommand();
+    char *args[COMMAND_ARGS_MAX_LENGTH];
+    int num_args = _parseCommandLine(this->getCommandLine(), args);
+    int job_id_num;
+    JobsList::JobEntry *job_to_bg;
+
+    if (num_args == 1) // only bg was written
+    {
+        job_to_bg = this->jobs->getLastStoppedJob(&job_id_num);
+        if (job_to_bg == nullptr) {
+            this->err.PrintNoStoppedJobs(cmd);
+            free_args(args, num_args);
+            return;
+        }
+
+    }
+    else if (num_args == 2) // specific job was entered
+    {
+        string job_id = args[2];
+        if (!is_an_integer(job_id)) {
+            this->err.PrintInvalidArgs(cmd);
+            free_args(args, num_args);
+            return;
+        }
+        job_id_num = stoi(job_id); // stio convert a string to number
+        job_to_bg = this->jobs->getJobById(job_id_num);
+        if (job_to_bg == nullptr) {
+            this->err.PrintJobIDDoesntExits(cmd, job_id_num);
+            free_args(args, num_args);
+            return;
+        }
+        else if (!job_to_bg->isStopped()){
+            this->err.PrintJobAlreadyRunningInBG(cmd, job_id_num);
+            free_args(args, num_args);
+            return;
+        }
+    }
+    else {
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
+    }
+
+    pid_t pid = job_to_bg->getJobPid();
+    cout << job_to_bg->getCmd() << ' : ' << pid << endl;
+    job_to_bg->resume();
+
+    //resume in background
+    if (kill(pid, SIGCONT) == SYS_FAIL) {
+        free_args(args, num_args);
+        return;
+    }
+
+    free_args(args, num_args);
+}
 
 
 /***--------------JobList implementation--------------***/
 
 /***addJob- this function inserts process to the JobList due to:
- * Run in the Background (bg command or &)
+ * Run in the Background &
  * Stopped Process
  */
-void JobsList::addJob(Command* cmd, pid_t job_pid, bool isStopped) {
+void JobsList::addJob(Command *cmd, pid_t job_pid, bool isStopped) {
     removeFinishedJobs();
     this->max_job_id++;
     JobEntry *new_job = new JobEntry(this->max_job_id, job_pid, isStopped, cmd);
@@ -282,88 +333,121 @@ void JobsList::addJob(Command* cmd, pid_t job_pid, bool isStopped) {
 
 
 /***printJobsList- this function prints all the jobs that currently in JobList */
-void JobsList::printJobsList(){
+void JobsList::printJobsList() {
     removeFinishedJobs();
 
-    for (auto it = jobs_vect.begin();  it!= jobs_vect.end(); ++it) {
-        time_t * curr;
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); ++it) {
+        time_t *curr;
         time(curr);
-        time_t diff = difftime((*it)->getEnterTime(),*curr);
-        if((*it)->isStopped()){
-            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommandLine()<<" : "<<(*it)->getJobPid()
-            <<' '<< diff <<' '<< "(stopped)"<<endl;
-        }
-        else{
-            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommandLine()<<" : "<<(*it)->getJobPid()
-                <<' '<< diff <<' '<<endl;
+        time_t diff = difftime((*it)->getEnterTime(), *curr);
+        if ((*it)->isStopped()) {
+            cout << (*it)->getJobId() << ' ' << (*it)->getCmd()->getCommandLine() << " : " << (*it)->getJobPid()
+                 << ' ' << diff << ' ' << "(stopped)" << endl;
+        } else {
+            cout << (*it)->getJobId() << ' ' << (*it)->getCmd()->getCommandLine() << " : " << (*it)->getJobPid()
+                 << ' ' << diff << ' ' << endl;
         }
     }
 }
+
 /***killAllJobs- this function kills all the jobs that currently in JobList */
-void JobsList::killAllJobs(){
-    for (auto it = jobs_vect.begin(); it!=jobs_vect.end() ; ++it) {
+void JobsList::killAllJobs() {
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); ++it) {
+        cout << "smash: process " << (*it)->getJobPid() << "was killed" << endl;
         kill((*it)->getJobPid(), SIGKILL);
         jobs_vect.erase(it);
+        it--;
     }
 }
 
 /***removeFinishedJobs- this function removes all the finished jobs from JobList */
 void JobsList::removeFinishedJobs() {
+    if (jobs_vect.empty()) {
+        return;
+    }
+    pid_t job_p;
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
-        if((*it)->isFinished()){
+        job_p = (*it)->getJobPid();
+        pid_t return_pid = waitpid(job_p, nullptr, WNOHANG);
+        if (return_pid == SYS_FAIL) return; //TODO: add error handler?
+        else if (return_pid == job_p) {
             jobs_vect.erase(it);
+            it--;
         }
+    }
+    //change max_job_id
+    if (job_p == max_job_id) {
+        int max_j = 0;
+        for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+            if (max_j < (*it)->getJobId()) {
+                max_j = (*it)->getJobId();
+            }
+        }
+        max_job_id = max_j;
     }
 }
 
 /***getJobById- this function returns pointer to JobEntry that matches to jobId */
-JobsList::JobEntry * JobsList::getJobById(int jobId) {
-    JobEntry * job= nullptr;
+JobsList::JobEntry *JobsList::getJobById(int jobId) {
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
-        if ((*it)->getJobId()==jobId){
-            job = *it;
-        }
-    }
-    return job;
-}
-
-/***removeJobById- this function removes job from JobList that matches to jobId */
-void JobsList::removeJobById(int jobId){
-    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
-        if ((*it)->getJobId()==jobId){
-                jobs_vect.erase(it);
-                break;
-        }
-    }
-}
-
-/***getLastJob- this function returns the most recent (and not finished) job that was inserted to JobList. */
-JobsList::JobEntry * JobsList::getLastJob(int* lastJobId){
-    for (auto it = jobs_vect.rbegin(); it != jobs_vect.rend(); it++) {
-        if (!(*it)->isFinished()){
+        if ((*it)->getJobId() == jobId) {
             return *it;
         }
     }
     return nullptr;
 }
 
+/***removeJobById- this function removes job from JobList that matches to jobId */
+void JobsList::removeJobById(int jobId) {
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+        if ((*it)->getJobId() == jobId) {
+            jobs_vect.erase(it);
+            return;
+        }
+    }
+}
+
+/***getLastJob- this function returns the most recent (and not finished) job that was inserted to JobList. */
+JobsList::JobEntry *JobsList::getLastJob(int *lastJobId) {
+    for (auto it = jobs_vect.rbegin(); it != jobs_vect.rend(); it++) {
+        pid_t job_p = (*it)->getJobPid();
+        pid_t return_pid = waitpid(job_p, nullptr, WNOHANG);
+
+        if (return_pid == SYS_FAIL) return nullptr; //TODO: add error handler?
+        else if (!(job_p == return_pid)) {
+            *lastJobId = (*it)->getJobId();
+            return *it;
+        }
+    }
+    *lastJobId = -1;
+    return nullptr;
+}
+
 /***getLastStoppedJob- this function returns the most recent stopped job that was inserted to JobList. */
-JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId){
-    JobEntry * last_stopped = nullptr;
+JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId) {
+    JobEntry *last_stopped = nullptr;
 //find last stopped and not finished job (reversed iterator)
     for (auto it = jobs_vect.rbegin(); it != jobs_vect.rend(); it++) {
-        if ((*it)->isStopped() && !(*it)->isFinished()){
+        pid_t job_p = (*it)->getJobPid();
+        pid_t return_pid = waitpid(job_p, nullptr, WNOHANG);
+
+        if (return_pid == SYS_FAIL) {//TODO: add error handler?
+            *jobId = -1;
+            return nullptr;
+        } else if ((*it)->isStopped() && job_p != return_pid) {
+            *jobId = (*it)->getJobId();
             last_stopped = *it;
             break;
         }
     }
+    *jobId = -1;
     return last_stopped;
 }
 
 /***getEntryTime- this function returns returns entry_time of jobID*/
 time_t JobsList::getEntryTime(int jobId) {
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
-        if ((*it)->getJobId()==jobId){
+        if ((*it)->getJobId() == jobId) {
             return (*it)->getEnterTime();
         }
     }
@@ -401,13 +485,13 @@ SmallShell::~SmallShell() {
 /**
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
 */
-Command * SmallShell::CreateCommand(const char* cmd_line) {
+Command *SmallShell::CreateCommand(const char *cmd_line) {
 
-  string cmd_s = _trim(string(cmd_line));
-  string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
-  if (firstWord.back() == '&'){
-      firstWord.pop_back();
-  }
+    string cmd_s = _trim(string(cmd_line));
+    string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
+    if (firstWord.back() == '&') {
+        firstWord.pop_back();
+    }
 
   if (firstWord.compare("showpid") == 0) {
     return new ShowPidCommand(cmd_line);
@@ -441,15 +525,15 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
     //return new ExternalCommand(cmd_line);
   }
 
-  return nullptr;
+    return nullptr;
 }
 
 void SmallShell::executeCommand(const char *cmd_line) {
-  // TODO: Add your implementation here
-   Command* cmd = CreateCommand(cmd_line);
-   if (cmd == nullptr){ //if unrecognize command was entered
-       return;
-   }
-   cmd->execute();
-  // Please note that you must fork smash process for some commands (e.g., external commands....)
+    // TODO: Add your implementation here
+    Command *cmd = CreateCommand(cmd_line);
+    if (cmd == nullptr) { //if unrecognize command was entered
+        return;
+    }
+    cmd->execute();
+    // Please note that you must fork smash process for some commands (e.g., external commands....)
 }

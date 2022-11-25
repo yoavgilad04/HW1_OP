@@ -125,7 +125,6 @@ class JobsList {
       time_t enter_time;
       bool is_stopped;
       Command * cmd;
-      bool is_finished = false;
   public:
 
       JobEntry(int job_id, pid_t job_pid, bool is_stopped, Command * cmd):
@@ -139,14 +138,13 @@ class JobsList {
       time_t getEnterTime(){return enter_time;}
       Command * getCmd(){return cmd;}
       pid_t getJobPid() {return job_pid;}
-      void toDelete(){this->is_finished = true;}
-      bool isFinished(){ return is_finished;}
+      void resume(){is_stopped=false;}
   };
  int max_job_id = 0; //counts the num of jobs. Need for naming the next job
  std::vector<JobEntry *> jobs_vect;
  public:
-  JobsList();
-  ~JobsList();
+  JobsList() : jobs_vect(){};
+  ~JobsList()=default;
   void addJob(Command* cmd, pid_t job_pid, bool isStopped = false);
   void printJobsList();
   void killAllJobs();
@@ -171,15 +169,15 @@ class ForegroundCommand : public BuiltInCommand {
     JobsList * jobs;
  public:
   ForegroundCommand(const char* cmd_line, JobsList* jobs): BuiltInCommand(cmd_line), jobs(jobs){};
-  virtual ~ForegroundCommand() {}
+  virtual ~ForegroundCommand() =default;
   void execute() override;
 };
 
 class BackgroundCommand : public BuiltInCommand {
     JobsList * jobs;
  public:
-  BackgroundCommand(const char* cmd_line, JobsList* jobs);
-  virtual ~BackgroundCommand() {}
+  BackgroundCommand(const char* cmd_line, JobsList* jobs): BuiltInCommand(cmd_line), jobs(jobs){};
+  virtual ~BackgroundCommand() = default;
   void execute() override;
 };
 
