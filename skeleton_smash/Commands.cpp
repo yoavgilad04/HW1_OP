@@ -104,8 +104,10 @@ void ShowPidCommand::execute() {
 }
 
 void GetCurrDirCommand::execute() {
-  char curr_path[PATH_MAX];
-  if (getcwd(curr_path, PATH_MAX)==NULL){
+
+  char * curr_path= new char(_PC_PATH_MAX);
+  if (getcwd(curr_path, (size_t)_PC_PATH_MAX)==NULL){
+
     return;
   }
   else{
@@ -114,11 +116,12 @@ void GetCurrDirCommand::execute() {
 }
 
 void ChangeDirCommand::execute() {
-    char * args[COMMAND_ARGS_MAX_LENGTH];
-    int num_args = _parseCommandLine(this->getCommandLine(), args);
+    char * args = new char (_PC_PATH_MAX);
+    int num_args = _parseCommandLine(this->getCommand(), &args);
+
 
     char * p_current;
-    getcwd(p_current, PATH_MAX);
+    getcwd(p_current, _PC_PATH_MAX);
 
     if (strcmp(args[1],"-")==0){
         chdir(*p_last_dir);
@@ -187,39 +190,50 @@ void QuitCommand::execute() {
 }
 
 
-void JobsList::addJob(Command* cmd, bool isStopped){
+void JobsList::addJob(Command* cmd, pid_t job_pid, bool isStopped){
+    removeFinishedJobs();
+
     this->max_job_id++;
-    JobEntry * new_job = new JobEntry(this->max_job_id, isStopped, cmd);
+    JobEntry * new_job = new JobEntry(this->max_job_id, job_pid, isStopped, cmd);
     this->jobs_vect.push_back(new_job);
-    if(isStopped){
-        this->last_stopped_job = new_job;
-    }
+
 }
 
 /**Remember: calc curr time every single time*/
 void JobsList::printJobsList(){
-    for (auto it = jobs_vect.begin();  it!= jobs_vect.end(); it++) {
+
+    removeFinishedJobs();
+
+    for (auto it = jobs_vect.begin();  it!= jobs_vect.end(); ++it) {
+
         time_t * curr;
         time(curr);
         time_t diff = difftime((*it)->getEnterTime(),*curr);
         if((*it)->isStopped()){
-//            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommandLine()<<" : "<<(*it)->getCmd()->getCmdPid()
-//            <<' '<< diff <<' '<< "(stopped)"<<endl;
+            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommand()<<" : "<<(*it)->getJobPid()
+            <<' '<< diff <<' '<< "(stopped)"<<endl;
         }
         else{
-//            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommandLine()<<" : "<<(*it)->getCmd()->getCmdPid()
-//                <<' '<< diff <<' '<<endl;
+            cout<<(*it)->getJobId()<<' '<<(*it)->getCmd()->getCommand()<<" : "<<(*it)->getJobPid()
+                <<' '<< diff <<' '<<endl;
+
         }
     }
 }
 
 void JobsList::killAllJobs(){
-    for (auto it = jobs_vect.begin();  it!= jobs_vect.end(); it++){
-        
+    for (auto it = jobs_vect.begin(); it!=jobs_vect.end() ; ++it) {
+        kill((*it)->getJobPid(), SIGKILL);
+        jobs_vect.erase(it);
     }
 }
 
-void JobsList::removeFinishedJobs(){
+void JobsList::removeFinishedJobs() {
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+        if((*it)->isFinished()){
+            jobs_vect.erase(it);
+        }
+    }
 
 }
 
@@ -228,16 +242,98 @@ JobsList::JobEntry * JobsList::getJobById(int jobId){
 }
 
 void JobsList::removeJobById(int jobId){
-
+    JobEntry * to_remove= nullptr;
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+        to_remove = *it;
+        if ((*it)->getJobId()==jobId){
+                jobs_vect.erase(it);
+                break;
+        }
+    }
 }
-
 JobsList::JobEntry * JobsList::getLastJob(int* lastJobId){
-
+    //last and not finished job
+    JobEntry * last_stopped = nullptr;
+    for (auto it = jobs_vect.rbegin(); it != jobs_vect.rend(); it++) {
+        if (!(*it)->isFinished()){
+            return *it;
+        }
+    }
 }
 
 JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId){
-
+    JobEntry * last_stopped = nullptr;
+//find last stopped and not finished job (reversed iterator)
+    for (auto it = jobs_vect.rbegin(); it != jobs_vect.rend(); it++) {
+        if ((*it)->isStopped() && !(*it)->isFinished()){
+            last_stopped = *it;
+            break;
+        }
+    }
+    return last_stopped;
 }
+
+time_t JobsList::getEntryTime(int jobId) {
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+        if ((*it)->getJobId()==jobId){
+            return (*it)->getEnterTime();
+        }
+    }
+    return 0;
+}
+
+void JobsCommand::execute() {
+    this->jobs->printJobsList();
+}
+
+void ForegroundCommand::execute()
+{
+    char * args[COMMAND_ARGS_MAX_LENGTH];
+    int num_args = _parseCommandLine(this->getCommand(), args);
+    int job_id_num;
+    JobsList::JobEntry* job_to_fg;
+    if (num_args == 1) // only fg was written
+    {
+        job_to_fg = this->jobs->getLastJob(&job_id_num);
+        if (job_to_fg == nullptr)
+        {
+            //send an error that the jobs list is empty
+        }
+    }
+    else if (num_args == 2) // specific job was entered
+    {
+        string job_id = args[2];
+        if (is_an_integer(job_id) == false)
+        {
+            //error that job id given is not a number
+        }
+        job_id_num = stoi(job_id); // stio convert a string to number
+        job_to_fg = this->jobs->getJobById(job_id_num);
+        if (job_to_fg == nullptr){
+            //need to send an error that the job id doesn't exist
+        }
+    }
+    else
+    {
+        // error invailid number of arguments were passed
+        //remmember to exit after an error
+    }
+
+    pid_t pid = job_to_fg->getJobPid();
+    if (kill(pid, SIGCONT) == SYS_FAIL)
+    {
+        //error: couldn't send sigcont to the pid
+    }
+    else
+    {
+        if(waitpid(pid, NULL, WCONTINUED) == SYS_FAIL)
+        {
+            //error: wait pid failed
+        }
+    }
+    cout << this->getCommand()<<": "<< pid; //success
+}
+
 
 
 SmallShell::SmallShell() {
@@ -258,7 +354,9 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
   if (firstWord.back() == '&'){
       firstWord.pop_back();
   }
+
 //chprompt, showpid, pwd, cd, jobs, fg, bg, quit, kill
+
 
 
   if (firstWord.compare("showpid") == 0) {
