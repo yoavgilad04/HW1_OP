@@ -108,9 +108,9 @@ void ShowPidCommand::execute() {
 }
 
 void GetCurrDirCommand::execute() {
-  char * curr_path= new char(_PC_PATH_MAX);
-  if (getcwd(curr_path, (size_t)_PC_PATH_MAX)==NULL){
-    return;
+  char * curr_path= new char(PATH_MAX);
+  if (getcwd(curr_path, (size_t)PATH_MAX)==NULL){
+      delete curr_path;
   }
   else{
     cout<<curr_path<<endl;
@@ -118,11 +118,11 @@ void GetCurrDirCommand::execute() {
 }
 
 void ChangeDirCommand::execute() {
-    char * args = new char (_PC_PATH_MAX);
+    char * args = new char (PATH_MAX);
     int num_args = _parseCommandLine(this->getCommandLine(), &args);
 
     char * p_current;
-    getcwd(p_current, _PC_PATH_MAX);
+    getcwd(p_current, PATH_MAX);
 
     if (args[1] == '-'){
         chdir(*p_last_dir);
@@ -264,12 +264,12 @@ void JobsList::removeJobById(int jobId){
 
 /***getLastJob- this function returns the most recent (and not finished) job that was inserted to JobList. */
 JobsList::JobEntry * JobsList::getLastJob(int* lastJobId){
-    JobEntry * last_stopped = nullptr;
     for (auto it = jobs_vect.rbegin(); it != jobs_vect.rend(); it++) {
         if (!(*it)->isFinished()){
             return *it;
         }
     }
+    return nullptr;
 }
 
 /***getLastStoppedJob- this function returns the most recent stopped job that was inserted to JobList. */
