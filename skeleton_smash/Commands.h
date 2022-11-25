@@ -9,19 +9,21 @@
 class Command {
     const char* cmd_line;
  public:
-  Command(const char* cmd_line):cmd_line(cmd_line){};
-  virtual ~Command();
-  virtual void execute() = 0;
-  //virtual void prepare();
-  //virtual void cleanup();
-  /***Our Own Methods*/
-  const char * getCommand(){return cmd_line;}
+    Command(const char* cmd_line):cmd_line(cmd_line){};
+    //  virtual ~Command();
+    ~Command() = default;
+    virtual void execute() = 0;
+    //virtual void prepare();
+    //virtual void cleanup();
+    /***Our Own Methods*/
+    const char * getCommandLine(){return cmd_line;}
 };
 
 class BuiltInCommand : public Command {
  public:
     BuiltInCommand(const char* cmd_line): Command(cmd_line){};
-  virtual ~BuiltInCommand() {}
+//  virtual ~BuiltInCommand() {}
+    ~BuiltInCommand() = default;
 };
 
 class ExternalCommand : public Command {
@@ -88,6 +90,7 @@ class JobsList {
       pid_t job_pid;
       time_t enter_time;
       bool is_stopped;
+
       Command * cmd;
       bool is_finished = false;
   public:
@@ -134,7 +137,7 @@ class JobsCommand : public BuiltInCommand {
 class ForegroundCommand : public BuiltInCommand {
     JobsList * jobs;
  public:
-  ForegroundCommand(const char* cmd_line, JobsList* jobs);
+  ForegroundCommand(const char* cmd_line, JobsList* jobs): BuiltInCommand(cmd_line), jobs(jobs){};
   virtual ~ForegroundCommand() {}
   void execute() override;
 };
