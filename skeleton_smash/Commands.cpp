@@ -9,7 +9,7 @@
 #include <limits.h>
 
 using namespace std;
-
+#define SYS_FAIL -1
 const std::string WHITESPACE = " \n\r\t\f\v";
 
 #if 0
@@ -40,7 +40,8 @@ string _trim(const std::string& s)
   return _rtrim(_ltrim(s));
 }
 
-int _parseCommandLine(const char* cmd_line, char** args) {
+
+int _parseCommandLine(const char* cmd_line, char** args) { ////!!!!!!! remember to free everytime calling this function
   FUNC_ENTRY()
   int i = 0;
   std::istringstream iss(_trim(string(cmd_line)).c_str());
@@ -53,6 +54,22 @@ int _parseCommandLine(const char* cmd_line, char** args) {
   return i;
 
   FUNC_EXIT()
+}
+
+
+bool is_an_integer(string str)
+{
+    for (char const &ch : str)
+    {
+        if (std::isdigit(ch) == 0)
+            return false;
+    }
+    return true;
+}
+
+bool startsWith(const std::string &str, const std::string &prefix)
+{
+    return str.size() >= prefix.size() && str.compare(0, prefix.size(), prefix) == 0;
 }
 
 bool _isBackgroundComamnd(const char* cmd_line) {
@@ -206,6 +223,57 @@ time_t JobsList::getEntryTime(int jobId) {
     return 0;
 }
 
+void JobsCommand::execute() {
+    this->jobs->printJobsList();
+}
+
+void ForegroundCommand::execute()
+{
+    char * args[COMMAND_ARGS_MAX_LENGTH];
+    int num_args = _parseCommandLine(this->getCommand(), args);
+    int job_id_num;
+    JobsList::JobEntry* job_to_fg;
+    if (num_args == 1) // only fg was written
+    {
+        job_to_fg = this->jobs->getLastJob(&job_id_num);
+        if (job_to_fg == nullptr)
+        {
+            //send an error that the jobs list is empty
+        }
+    }
+    else if (num_args == 2) // specific job was entered
+    {
+        string job_id = args[2];
+        if (is_an_integer(job_id) == false)
+        {
+            //error that job id given is not a number
+        }
+        job_id_num = stoi(job_id); // stio convert a string to number
+        job_to_fg = this->jobs->getJobById(job_id_num);
+        if (job_to_fg == nullptr){
+            //need to send an error that the job id doesn't exist
+        }
+    }
+    else
+    {
+        // error invailid number of arguments were passed
+        //remmember to exit after an error
+    }
+
+    pid_t pid = job_to_fg->getJobPid();
+    if (kill(pid, SIGCONT) == SYS_FAIL)
+    {
+        //error: couldn't send sigcont to the pid
+    }
+    else
+    {
+        if(waitpid(pid, NULL, WCONTINUED) == SYS_FAIL)
+        {
+            //error: wait pid failed
+        }
+    }
+    cout << this->getCommand()<<": "<< pid; //success
+}
 
 
 
@@ -224,7 +292,9 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
 
   string cmd_s = _trim(string(cmd_line));
   string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
-//chprompt, showpid, pwd, cd, jobs, fg, bg, quit, kill
+  if (firstWord.back() == '&'){
+      firstWord.pop_back();
+  }
 
 
   if (firstWord.compare("showpid") == 0) {
@@ -265,6 +335,9 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
 void SmallShell::executeCommand(const char *cmd_line) {
   // TODO: Add your implementation here
    Command* cmd = CreateCommand(cmd_line);
+   if (cmd == nullptr){ //if unrecognize command was entered
+       return;
+   }
    cmd->execute();
   // Please note that you must fork smash process for some commands (e.g., external commands....)
 }
