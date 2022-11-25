@@ -10,7 +10,7 @@
 
 using namespace std;
 #define SYS_FAIL -1
-=const std::string WHITESPACE = " \n\r\t\f\v";
+const std::string WHITESPACE = " \n\r\t\f\v";
 
 #if 0
 #define FUNC_ENTRY()  \
@@ -118,31 +118,80 @@ void ShowPidCommand::execute() {
 }
 
 void GetCurrDirCommand::execute() {
-  char * curr_path= new char[PATH_MAX];
-  if (getcwd(curr_path, (size_t)PATH_MAX) == nullptr){
-      delete curr_path;
+  char curr_path[PATH_MAX];
+  if (getcwd(curr_path, (size_t)PATH_MAX) == NULL)
+  {
+      this->err.PrintSysFailError("getcwd");
       return;
   }
   else{
     cout<<curr_path<<endl;
-    delete curr_path;
+    return;
   }
 }
 
 void ChangeDirCommand::execute() {
-    char * args = new char (_PC_PATH_MAX);
-    int num_args = _parseCommandLine(this->getCommandLine(), &args);
-
-    char * p_current;
-    getcwd(p_current, _PC_PATH_MAX);
-
-    if (args[1] == '-'){
-        chdir(*p_last_dir);
-        *p_last_dir = p_current;
+    char* args[PATH_MAX];
+    string cmd = this->getCommand();
+    int num_args = _parseCommandLine(this->getCommandLine(), args);
+    if(num_args > 2)
+    {
+        this->err.PrintTooManyArgs(cmd);
+        free_args(args, num_args);
         return;
     }
+    if(num_args == 1)
+    {
+        /// todo: Taking care if only cd was written
+        free_args(args, num_args);
+        return;
+    }
+    char*  p_current = new char[PATH_MAX];
+    char * makaf = "-";
+
+    if(getcwd(p_current, (size_t)PATH_MAX) == NULL)
+    {
+        this->err.PrintSysFailError("getcwd");
+        return;
+    }
+    if (strcmp(args[1],makaf) == 0) // second argument is -
+    {
+        if (p_last_dir == nullptr)
+        {
+            this->err.PrintOLDPWDFail(cmd);
+            free_args(args, num_args);
+            return;
+        }
+        if ((chdir(*p_last_dir)) == SYS_FAIL)
+        {
+            this->err.PrintSysFailError("chdir");
+            free_args(args, num_args);
+            return;
+        }
+        delete *p_last_dir;
+        *p_last_dir = p_current;
+        free_args(args, num_args);
+        return;
+    }
+
     else {
-        chdir(args+1);
+        if((chdir(args[1])) == SYS_FAIL)
+        {
+            this->err.PrintSysFailError("chdir");
+            free_args(args, num_args);
+            return;
+        }
+        if(p_last_dir == nullptr)
+        {
+            *p_last_dir = p_current;
+        }
+        else
+        {
+            delete *p_last_dir;
+            *p_last_dir = p_current;
+        }
+        free_args(args, num_args);
+        return;
     }
 }
 
@@ -171,7 +220,7 @@ void ForegroundCommand::execute()
     }
     else if (num_args == 2) // specific job was entered
     {
-        string job_id = args[2];
+        string job_id = args[1];
         if (!is_an_integer(job_id))
         {
             this->err.PrintInvalidArgs(cmd);
@@ -187,7 +236,7 @@ void ForegroundCommand::execute()
             return;
         }
     }
-    else
+    else //more then 2 arguments
     {
         this->err.PrintInvalidArgs(cmd);
         free_args(args, num_args);
@@ -197,7 +246,7 @@ void ForegroundCommand::execute()
     pid_t pid = job_to_fg->getJobPid();
     if (kill(pid, SIGCONT) == SYS_FAIL)
     {
-        //error: couldn't send sigcont to the pid
+        this->err.PrintSysFailError("kill");
         free_args(args, num_args);
         return;
     }
@@ -205,7 +254,7 @@ void ForegroundCommand::execute()
     {
         if(waitpid(pid, NULL, WCONTINUED) == SYS_FAIL)
         {
-            //error: wait pid failed
+            this->err.PrintSysFailError("waitpid");
             free_args(args, num_args);
             return;
         }
@@ -231,21 +280,6 @@ void JobsList::addJob(Command* cmd, pid_t job_pid, bool isStopped) {
     this->jobs_vect.push_back(new_job);
 }
 
-//
-//    pid_t pid = job_to_fg->getJobPid();
-//    if (kill(pid, SIGCONT) == SYS_FAIL)
-//    {
-//        //error: couldn't send sigcont to the pid
-//    }
-//    else
-//    {
-//        if(waitpid(pid, NULL, WCONTINUED) == SYS_FAIL)
-//        {
-//            //error: wait pid failed
-//        }
-//    }
-//    cout << this->getCommand()<<": "<< pid; //success
-//}
 
 /***printJobsList- this function prints all the jobs that currently in JobList */
 void JobsList::printJobsList(){
@@ -356,7 +390,7 @@ void JobsCommand::execute() {
 /***--------------SmallShell implementation--------------***/
 
 SmallShell::SmallShell() {
-    this->jobs_list = new JobsList();
+//    this->jobs_list = new JobsList();
     this->p_last_dir = nullptr;
 }
 
@@ -382,7 +416,7 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
     return new GetCurrDirCommand(cmd_line);
   }
   else if (firstWord.compare("cd") == 0) {
-    return new ChangeDirCommand(cmd_line, p_last_dir);
+    return new ChangeDirCommand(cmd_line, &p_last_dir);
   }
   else if (firstWord.compare("jobs") == 0) {
     return new JobsCommand(cmd_line, jobs_list);
