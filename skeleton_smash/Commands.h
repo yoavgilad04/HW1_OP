@@ -2,7 +2,7 @@
 #define SMASH_COMMAND_H_
 
 #include <vector>
-
+#include <stdio.h>
 #define COMMAND_ARGS_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
 using namespace std;
@@ -31,6 +31,12 @@ public:
 
     void PrintOLDPWDFail(string cmd)
     {cerr <<this->pre_error<<cmd<<": OLDPWD not set";}
+
+    void PrintSysFailError(string sys_call_name)
+    {
+        string msg = this->pre_error + sys_call_name + "failed ";
+        perror(msg.c_str());
+    } //c_str convert string to char
 };
 
 class Command {
@@ -214,7 +220,7 @@ class KillCommand : public BuiltInCommand {
 
 class SmallShell {
  private:
-    char** p_last_dir;
+    char* p_last_dir;
     JobsList* jobs_list;
     // TODO: Add your data members
 public:
