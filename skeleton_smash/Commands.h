@@ -5,6 +5,7 @@
 #include <stdio.h>
 #define COMMAND_ARGS_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
+#define MAX_SIG 31
 using namespace std;
 
 class SmashErrors
@@ -50,7 +51,8 @@ protected:
   //virtual void prepare();
   //virtual void cleanup();
   /***Our Own Methods*/
-  const char * getCommandLine(){return cmd_line;}
+  const char * getCommandLine(){return cmd_line;};
+  char* getCommandLineNoneConst(){return strdup(cmd_line);}
   std::string getCommand();
 };
 
@@ -62,9 +64,23 @@ class BuiltInCommand : public Command {
 
 class ExternalCommand : public Command {
  public:
-  ExternalCommand(const char* cmd_line);
+  ExternalCommand(const char* cmd_line): Command(cmd_line){};
   virtual ~ExternalCommand() {}
+  char*[] get_array_of_args(bool isComplex);
   void execute() override;
+};
+
+class JobsList;
+class ComplexExternalCommand: public ExternalCommand{
+    bool is_background;
+    char * args;
+    int args_num;
+    JobsList* jobs;
+public:
+    ComplexExternalCommand(const char* cmd_line, bool is_background, char* args, int args_num, JobsList* jobs):
+    ExternalCommand(cmd_line), is_background(is_background), args(args), args_num(args_num), jobs(jobs){};
+    virtual ~ComplexExternalCommand(){}
+    void execute() override;
 };
 
 class PipeCommand : public Command {
@@ -138,7 +154,8 @@ class JobsList {
       time_t getEnterTime(){return enter_time;}
       Command * getCmd(){return cmd;}
       pid_t getJobPid() {return job_pid;}
-      void resume(){is_stopped=false;}
+      void resume(){this->is_stopped=false;}
+      void stop(){this->is_stopped=true;}
   };
  int max_job_id = 0; //counts the num of jobs. Need for naming the next job
  std::vector<JobEntry *> jobs_vect;
@@ -210,9 +227,10 @@ class SetcoreCommand : public BuiltInCommand {
 
 class KillCommand : public BuiltInCommand {
   /* Bonus */
+  JobsList* jobs;
  // TODO: Add your data members
  public:
-  KillCommand(const char* cmd_line, JobsList* jobs);
+  KillCommand(const char* cmd_line, JobsList* jobs): BuiltInCommand(cmd_line), jobs(jobs) {};
   virtual ~KillCommand() {}
   void execute() override;
 };

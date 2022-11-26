@@ -8,6 +8,8 @@
 #include "Commands.h"
 #include <limits.h>
 
+
+//todo:: Remmember to free Command*. In joblist and in the executeCommand/smallShell
 using namespace std;
 #define SYS_FAIL -1
 const std::string WHITESPACE = " \n\r\t\f\v";
@@ -69,17 +71,54 @@ string Command::getCommand() {
     return firstWord;
 }
 
+/**
+ * This function get a string and return rather the string can be
+ * converted to integer.
+ * @param str
+ * @return bool
+ */
 bool is_an_integer(string str) {
-    for (char const &ch : str) {
+    for (char const &ch : str)
+    {
         if (std::isdigit(ch) == 0)
             return false;
     }
+    if (str.length() == 0)
+        return false;
     return true;
 }
 
+/**
+ * This function chekcs rather the prefix string is a prefix of the str string.
+ * @param str
+ * @param prefix
+ * @return bool
+ */
 bool startsWith(const std::string &str, const std::string &prefix) {
     return str.size() >= prefix.size() && str.compare(0, prefix.size(), prefix) == 0;
 }
+
+/**
+ * This function check if a signal argument given by the kill command is valid
+ * @param signal
+ * @return bool
+ */
+bool is_valid_signal(string signal)
+
+{
+    string signal_without_makaf = signal.substr(1, signal.length());
+   if (!startsWith(signal, "-") || !is_an_integer(signal_without_makaf) )
+       return false;
+
+   int signal_num = stoi(signal_without_makaf);
+
+   if (signal_num >= MAX_SIG || signal_num == 0)
+       return false;
+
+   return true;
+}
+
+
 
 bool _isBackgroundComamnd(const char *cmd_line) {
     const string str(cmd_line);
@@ -217,7 +256,7 @@ void ForegroundCommand::execute() {
         string job_id = args[1];
         if (!is_an_integer(job_id))
         {
-            this->err.PrintInvalidArgs(cmd);
+            this->err.PrintInvalidArgs(cmd); //todo: if job id isn't an integer should it be jobdoesntexits or syntax err
             free_args(args, num_args);
             return;
         }
@@ -279,7 +318,7 @@ void BackgroundCommand::execute() {
     }
     else if (num_args == 2) // specific job was entered
     {
-        string job_id = args[2];
+        string job_id = args[1];
         if (!is_an_integer(job_id)) {
             this->err.PrintInvalidArgs(cmd);
             free_args(args, num_args);
@@ -305,7 +344,7 @@ void BackgroundCommand::execute() {
     }
 
     pid_t pid = job_to_bg->getJobPid();
-    cout << job_to_bg->getCmd() << ' : ' << pid << endl;
+    cout << job_to_bg->getCmd()->getCommand() << ' : ' << pid << endl;
     job_to_bg->resume();
 
     //resume in background
@@ -317,6 +356,79 @@ void BackgroundCommand::execute() {
     free_args(args, num_args);
 }
 
+
+void KillCommand::execute() {
+    string cmd = this->getCommand();
+    char *args[COMMAND_ARGS_MAX_LENGTH];
+    int num_args = _parseCommandLine(this->getCommandLine(), args);
+    int job_id_num;
+    int signal_num;
+    JobsList::JobEntry *job;
+    if(num_args != 3){
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
+    }
+    string signal_str = args[1];
+    string sig_without_makaf = signal_str.substr(1, signal_str.length()); // removing the '-' from the beginning
+    if(is_valid_signal(signal_str)) //check if the command second args startswith -
+    {
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
+    }
+    signal_num = stoi(signal_str);
+    string job_id = args[2];
+    if (!is_an_integer(job_id))
+    {
+        this->err.PrintInvalidArgs(cmd); //todo: if job id isn't an integer should it be jobdoesntexits or syntax err
+        free_args(args, num_args);
+        return;
+    }
+    job_id_num = stoi(job_id); // stio convert a string to number
+    job = jobs->getJobById(job_id_num);
+    if (job == nullptr)
+    {
+        this->err.PrintJobIDDoesntExits(cmd, job_id_num);
+        free_args(args, num_args);
+        return;
+    }
+    // in here we found that the signum num the job id are valid
+    if (kill(job->getJobPid(), signal_num) == SYS_FAIL)
+    {
+        this->err.PrintSysFailError("kill");
+        free_args(args,num_args);
+        return;
+    }
+
+    switch(signal_num){
+        case SIGCONT:
+            jobs->removeJobById(job_id_num);
+            break;
+        case SIGINT:
+            jobs->removeJobById(job_id_num);
+            break;
+        case SIGQUIT:
+
+        case SIGABRT:
+            ///whattttt tooo dooooo???
+            break;
+        case SIGKILL:
+            jobs->removeJobById(job_id_num);
+            break;
+        case SIGSTOP:
+            job->stop();
+            break;
+        default:
+            break;
+            //todo: add more cases and think how to act for each sig
+    }
+
+
+
+
+
+}
 
 /***--------------JobList implementation--------------***/
 
@@ -462,6 +574,46 @@ void JobsCommand::execute() {
 /***--------------External Command implementation--------------***/
 
 
+void ComplexExternalCommand::execute() {
+    char* cmd_line = this->getCommandLineNoneConst();
+    char * file_path = "/bin/bash";
+    char * flag = "-c";
+    char * array_of_arg[] = {file_path, flag, cmd_line, nullptr};
+    pid_t pid = fork();
+    pid_t child_pid;
+    if (pid == SYS_FAIL){
+        this->err.PrintSysFailError("fork");
+        free(cmd_line);
+        return;
+    }
+    if (pid == 0){
+        if (setpgrp() == SYS_FAIL){
+            this->err.PrintSysFailError("setpgrp");
+            free(cmd_line);
+            return;
+        }
+        if(execv(file_path, array_of_arg) == SYS_FAIL){
+            this->err.PrintSysFailError("execv");
+            free(cmd_line);
+            return;
+        }
+    else{ // pid != 0 Parent code
+        free(cmd_line);
+        child_pid = pid;
+        if(!this->is_background){
+            if (waitpid(child_pid, nullptr, WUNTRACED) == SYS_FAIL) {
+                this->err.PrintSysFailError("waitpid");
+                return;
+            }
+        else{ //in background
+            this->jobs->addJob(this, child_pid, false);
+    }
+
+
+    }
+}
+
+
 
 /***--------------Pipe Command implementation--------------***/
 
@@ -515,14 +667,15 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     //return new QuitCommand(cmd_line, jobs_list);
   }
   else if (firstWord.compare("kill") == 0) {
-    //return new KillCommand(cmd_line, jobs_list);
+    return new KillCommand(cmd_line, jobs_list);
   }
   else if (firstWord.compare("fare") == 0) {
     //return new FareCommand(cmd_line);
   }
 
   else {
-    //return new ExternalCommand(cmd_line);
+      // In case the command is not a built in command
+    return new ExternalCommand(cmd_line);
   }
 
     return nullptr;
@@ -535,5 +688,10 @@ void SmallShell::executeCommand(const char *cmd_line) {
         return;
     }
     cmd->execute();
+    delete cmd;
     // Please note that you must fork smash process for some commands (e.g., external commands....)
 }
+
+// ComplextExternalCommand(cmd_line, is_background, args*)
+//rm *.txt       execv("bin/bash", args)
+// rm file1.txt  execv(file1.txt,
