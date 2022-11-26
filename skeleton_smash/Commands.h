@@ -60,9 +60,11 @@ class BuiltInCommand : public Command {
     virtual ~BuiltInCommand() {}
 };
 
+class JobsList;
 class ExternalCommand : public Command {
- public:
-  ExternalCommand(const char* cmd_line): Command(cmd_line){};
+    JobsList * jobs_vect;
+public:
+  ExternalCommand(const char* cmd_line, JobsList * jobs_vect): Command(cmd_line),jobs_vect(jobs_vect){};
   virtual ~ExternalCommand() {}
   void execute() override;
 };
@@ -85,9 +87,10 @@ class RedirectionCommand : public Command {
   //void cleanup() override;
 };
 
-class SimpleExternalCommand : public ExternalCommand {
+/*class SimpleExternalCommand : public ExternalCommand {
 public:
-    explicit SimpleExternalCommand(const char* cmd_line):ExternalCommand(cmd_line){};
+    explicit SimpleExternalCommand(const char* cmd_line, bool is_background, int num_arguments,
+                                   char ** arguments): ExternalCommand(cmd_line, is_background, num_arguments, arguments){};
     virtual ~SimpleExternalCommand() {}
     void execute() override;
 
@@ -95,11 +98,12 @@ public:
 
 class ComplexExternalCommand : public ExternalCommand {
 public:
-    explicit ComplexExternalCommand(const char* cmd_line):ExternalCommand(cmd_line){};
+    explicit ComplexExternalCommand(const char* cmd_line, bool is_background, int num_arguments,
+                                    char ** arguments): ExternalCommand(cmd_line, is_background, num_arguments, arguments){};
     virtual ~ComplexExternalCommand() {}
     void execute() override;
 
-};
+};*/
 
 class Chprompt : public BuiltInCommand {
 public:
