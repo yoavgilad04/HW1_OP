@@ -62,7 +62,7 @@ class BuiltInCommand : public Command {
 
 class ExternalCommand : public Command {
  public:
-  ExternalCommand(const char* cmd_line);
+  ExternalCommand(const char* cmd_line): Command(cmd_line){};
   virtual ~ExternalCommand() {}
   void execute() override;
 };
@@ -83,6 +83,29 @@ class RedirectionCommand : public Command {
   void execute() override;
   //void prepare() override;
   //void cleanup() override;
+};
+
+class SimpleExternalCommand : public ExternalCommand {
+public:
+    explicit SimpleExternalCommand(const char* cmd_line):ExternalCommand(cmd_line){};
+    virtual ~SimpleExternalCommand() {}
+    void execute() override;
+
+};
+
+class ComplexExternalCommand : public ExternalCommand {
+public:
+    explicit ComplexExternalCommand(const char* cmd_line):ExternalCommand(cmd_line){};
+    virtual ~ComplexExternalCommand() {}
+    void execute() override;
+
+};
+
+class Chprompt : public BuiltInCommand {
+public:
+    Chprompt(const char* cmd_line): BuiltInCommand(cmd_line){}
+    virtual ~Chprompt() {}
+    void execute() override;
 };
 
 class ChangeDirCommand : public BuiltInCommand {
@@ -222,7 +245,7 @@ class SmallShell {
  private:
     char* p_last_dir;
     JobsList* jobs_list;
-    // TODO: Add your data members
+    string prompt = "smash> ";
 public:
     SmallShell();
     Command *CreateCommand(const char* cmd_line);
@@ -235,8 +258,10 @@ public:
         return instance;
       }
       ~SmallShell();
-      void executeCommand(const char* cmd_line);
-    // TODO: add extra methods as needed
+      void executeCommand(const char* new_prompt);
+
+      void ChangePrompt(const string new_prompt);
+      string GetPrompt(){return prompt;}
 };
 
 

@@ -106,6 +106,20 @@ void _removeBackgroundSign(char *cmd_line) {
 
 /***--------------Build In Commands--------------***/
 
+
+void Chprompt::execute() { //TODO: ADD ERRORS
+    SmallShell & shell = SmallShell::getInstance();
+    char* args[PATH_MAX];
+    int num_args = _parseCommandLine(this->getCommandLine(), args);
+    if (num_args==1){
+        shell.ChangePrompt(NULL);
+    }
+    else if (num_args==2){
+        shell.ChangePrompt(args[1]);
+    }
+}
+
+
 void ShowPidCommand::execute() {
     pid_t curr_pid = getpid();
     cout << "smash pid is " << curr_pid << std::endl;
@@ -194,7 +208,7 @@ void QuitCommand::execute() {
 }
 
 /***ForegroundCommand implementation
- * this function brings a stopped process or a process that runs
+ * this command brings a stopped process or a process that runs
  * in the background to the foreground
  * */
 
@@ -253,12 +267,13 @@ void ForegroundCommand::execute() {
             return;
         }
     }
+    jobs->removeJobById(job_id_num);
     free_args(args, num_args);
 }
 
 
 /***BackgroundCommand implementation
- * this function resumes one of the stopped processes in the background
+ * this command resumes one of the stopped processes in the background
  * */
 void BackgroundCommand::execute() {
     string cmd = this->getCommand();
@@ -279,7 +294,7 @@ void BackgroundCommand::execute() {
     }
     else if (num_args == 2) // specific job was entered
     {
-        string job_id = args[2];
+        string job_id = args[1];
         if (!is_an_integer(job_id)) {
             this->err.PrintInvalidArgs(cmd);
             free_args(args, num_args);
@@ -306,15 +321,46 @@ void BackgroundCommand::execute() {
 
     pid_t pid = job_to_bg->getJobPid();
     cout << job_to_bg->getCmd() << ' : ' << pid << endl;
-    job_to_bg->resume();
 
     //resume in background
     if (kill(pid, SIGCONT) == SYS_FAIL) {
+        this->err.PrintSysFailError("kill");
         free_args(args, num_args);
         return;
     }
-
+    job_to_bg->resume();
     free_args(args, num_args);
+}
+
+/***TimeoutCommand implementation
+ * this command sends an alarm for 'duration' seconds, runs the command on smash directly,
+ * and when timed out sends SIGKILL.
+*/
+void TimeoutCommand::execute() {
+    return;
+}
+
+
+/***FareCommand implementation
+ * this command finds and replace every instance of word source to the word dest.
+ * prints how many instances have been replaced.
+*/
+void FareCommand::execute() {
+    return;
+}
+
+/***SetcoreCommand implementation
+ * this command sets the core that the job with job id run on.
+*/
+void SetcoreCommand::execute() {
+    return;
+}
+
+/***KillCommand implementation
+ * this command sends a SigNum to JobId.
+*/
+void KillCommand::execute() {
+
 }
 
 
@@ -461,7 +507,26 @@ void JobsCommand::execute() {
 
 /***--------------External Command implementation--------------***/
 
+/*** ExternalCommand implementation
+ * this command provides running some executable with irs arguments
+ */
+void ExternalCommand::execute() {
 
+}
+
+/*** SimpleExternalCommand implementation
+ * this command provides running some executable with irs arguments
+ */
+void SimpleExternalCommand::execute() {
+
+}
+
+/*** ComplexExternalCommand implementation
+ * this command provides running some executable with irs arguments
+ */
+void ComplexExternalCommand::execute() {
+
+}
 
 /***--------------Pipe Command implementation--------------***/
 
@@ -472,6 +537,16 @@ void JobsCommand::execute() {
 
 
 /***--------------SmallShell implementation--------------***/
+
+void SmallShell::ChangePrompt(string new_prompt) {
+    if (new_prompt.empty()){
+        this->prompt = "smash> ";
+    }
+    else{
+        this->prompt = new_prompt+"> ";
+    }
+}
+
 
 SmallShell::SmallShell() {
 //    this->jobs_list = new JobsList();
@@ -495,6 +570,9 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
 
   if (firstWord.compare("showpid") == 0) {
     return new ShowPidCommand(cmd_line);
+  }
+  else if(firstWord.compare("chprompt") == 0){
+      return new Chprompt(cmd_line);
   }
   else if (firstWord.compare("pwd") == 0) {
     return new GetCurrDirCommand(cmd_line);
@@ -522,7 +600,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
   }
 
   else {
-    //return new ExternalCommand(cmd_line);
+    return new ExternalCommand(cmd_line);
   }
 
     return nullptr;
