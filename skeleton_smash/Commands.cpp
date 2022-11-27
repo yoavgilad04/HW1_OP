@@ -65,17 +65,56 @@ void free_args(char **args, int args_size) {
     }
 }
 
+/*string Command::getCommand() {
+    string cmd_s = _trim(string(cmd_line));
+    string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
+    return firstWord;
+}*/
+
+/**
+ * This function get a string and return rather the string can be
+ * converted to integer.
+ * @param str
+ * @return bool
+ */
 bool is_an_integer(string str) {
     for (char const &ch : str) {
         if (std::isdigit(ch) == 0)
             return false;
     }
+    if (str.length() == 0)
+        return false;
     return true;
 }
 
+/**
+ * This function chekcs rather the prefix string is a prefix of the str string.
+ * @param str
+ * @param prefix
+ * @return bool
+ */
 bool startsWith(const std::string &str, const std::string &prefix) {
     return str.size() >= prefix.size() && str.compare(0, prefix.size(), prefix) == 0;
 }
+
+/**
+ * This function check if a signal argument given by the kill command is valid
+ * @param signal
+ * @return bool
+ */
+bool is_valid_signal(string signal) {
+    string signal_without_makaf = signal.substr(1, signal.length());
+    if (!startsWith(signal, "-") || !is_an_integer(signal_without_makaf))
+        return false;
+
+    int signal_num = stoi(signal_without_makaf);
+
+    if (signal_num >= MAX_SIG || signal_num == 0)
+        return false;
+
+    return true;
+}
+
 
 bool _isBackgroundComamnd(const char *cmd_line) {
     const string str(cmd_line);
@@ -101,9 +140,6 @@ void _removeBackgroundSign(char *cmd_line) {
 }
 
 string Command::getCommand() {
-/*    char * command = new char [strlen(cmd_line)];
-    strncpy (command,cmd_line,strlen(cmd_line));
-    _removeBackgroundSign(command);*/
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
     if (firstWord.back() == '&') {
@@ -317,6 +353,74 @@ void BackgroundCommand::execute() {
     free_args(args, num_args);
 }
 
+
+void KillCommand::execute() {
+    string cmd = this->getCommand();
+    char *args[COMMAND_ARGS_MAX_LENGTH];
+    int num_args = _parseCommandLine(this->getCommandLine(), args);
+    int job_id_num;
+    int signal_num;
+    JobsList::JobEntry *job;
+    if (num_args != 3) {
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
+    }
+    string signal_str = args[1];
+    string sig_without_makaf = signal_str.substr(1, signal_str.length()); // removing the '-' from the beginning
+    if (is_valid_signal(signal_str)) //check if the command second args startswith -
+    {
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
+    }
+    signal_num = stoi(signal_str);
+    string job_id = args[2];
+    if (!is_an_integer(job_id)) {
+        this->err.PrintInvalidArgs(cmd); //todo: if job id isn't an integer should it be jobdoesntexits or syntax err
+        free_args(args, num_args);
+        return;
+    }
+    job_id_num = stoi(job_id); // stio convert a string to number
+    job = jobs->getJobById(job_id_num);
+    if (job == nullptr) {
+        this->err.PrintJobIDDoesntExits(cmd, job_id_num);
+        free_args(args, num_args);
+        return;
+    }
+    // in here we found that the signum num the job id are valid
+    if (kill(job->getJobPid(), signal_num) == SYS_FAIL) {
+        this->err.PrintSysFailError("kill");
+        free_args(args, num_args);
+        return;
+    }
+
+    switch (signal_num) {
+        case SIGCONT:
+            jobs->removeJobById(job_id_num);
+            break;
+        case SIGINT:
+            jobs->removeJobById(job_id_num);
+            break;
+        case SIGQUIT:
+
+        case SIGABRT:
+            ///whattttt tooo dooooo???
+            break;
+        case SIGKILL:
+            jobs->removeJobById(job_id_num);
+            break;
+        case SIGSTOP:
+            job->stop();
+            break;
+        default:
+            break;
+            //todo: add more cases and think how to act for each sig
+    }
+
+
+}
+
 /***TimeoutCommand implementation
  * this command sends an alarm for 'duration' seconds, runs the command on smash directly,
  * and when timed out sends SIGKILL.
@@ -341,12 +445,6 @@ void SetcoreCommand::execute() {
     return;
 }
 
-/***KillCommand implementation
- * this command sends a SigNum to JobId.
-*/
-void KillCommand::execute() {
-
-}
 
 
 /***--------------JobList implementation--------------***/
@@ -654,70 +752,68 @@ void RedirectionCommand::execute() {
 
 /***--------------SmallShell implementation--------------***/
 
-    void SmallShell::ChangePrompt(string new_prompt) {
-        if (new_prompt.empty()) {
-            this->prompt = "smash> ";
-        } else {
-            this->prompt = new_prompt + "> ";
-        }
+void SmallShell::ChangePrompt(string new_prompt) {
+    if (new_prompt.empty()) {
+        this->prompt = "smash> ";
+    } else {
+        this->prompt = new_prompt + "> ";
     }
+}
 
 
-    SmallShell::SmallShell()
-    {
-        this->jobs_list = new JobsList();
-        this->p_last_dir = nullptr;
-    }
+SmallShell::SmallShell() {
+    this->jobs_list = new JobsList();
+    this->p_last_dir = nullptr;
+}
 
-    SmallShell::~SmallShell()
-    {
+SmallShell::~SmallShell() {
 // TODO: add your implementation
-    }
+}
 
 /**
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
 */
-    Command *SmallShell::CreateCommand(const char *cmd_line) {
+Command *SmallShell::CreateCommand(const char *cmd_line) {
 
-        string cmd_s = _trim(string(cmd_line));
-        string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
-        if (firstWord.back() == '&') {
-            firstWord.pop_back();
-        }
-
-        if (firstWord.compare("showpid") == 0) {
-            return new ShowPidCommand(cmd_line);
-        } else if (firstWord.compare("chprompt") == 0) {
-            return new Chprompt(cmd_line);
-        } else if (firstWord.compare("pwd") == 0) {
-            return new GetCurrDirCommand(cmd_line);
-        } else if (firstWord.compare("cd") == 0) {
-            return new ChangeDirCommand(cmd_line, &p_last_dir);
-        } else if (firstWord.compare("jobs") == 0) {
-            return new JobsCommand(cmd_line, jobs_list);
-        } else if (firstWord.compare("fg") == 0) {
-            return new ForegroundCommand(cmd_line, jobs_list);
-        } else if (firstWord.compare("bg") == 0) {
-            //return new BackgroundCommand(cmd_line, jobs_list);
-        } else if (firstWord.compare("quit") == 0) {
-            //return new QuitCommand(cmd_line, jobs_list);
-        } else if (firstWord.compare("kill") == 0) {
-            //return new KillCommand(cmd_line, jobs_list);
-        } else if (firstWord.compare("fare") == 0) {
-            //return new FareCommand(cmd_line);
-        } else {
-            return new ExternalCommand(cmd_line);
-        }
-
-        return nullptr;
+    string cmd_s = _trim(string(cmd_line));
+    string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
+    if (firstWord.back() == '&') {
+        firstWord.pop_back();
     }
 
-    void SmallShell::executeCommand(const char *cmd_line) {
-        // TODO: Add your implementation here
-        Command *cmd = CreateCommand(cmd_line);
-        if (cmd == nullptr) { //if unrecognized command was entered
-            return;
-        }
-        cmd->execute();
-        // Please note that you must fork smash process for some commands (e.g., external commands....)
+    if (firstWord.compare("showpid") == 0) {
+        return new ShowPidCommand(cmd_line);
+    } else if (firstWord.compare("chprompt") == 0) {
+        return new Chprompt(cmd_line);
+    } else if (firstWord.compare("pwd") == 0) {
+        return new GetCurrDirCommand(cmd_line);
+    } else if (firstWord.compare("cd") == 0) {
+        return new ChangeDirCommand(cmd_line, &p_last_dir);
+    } else if (firstWord.compare("jobs") == 0) {
+        return new JobsCommand(cmd_line, jobs_list);
+    } else if (firstWord.compare("fg") == 0) {
+        return new ForegroundCommand(cmd_line, jobs_list);
+    } else if (firstWord.compare("bg") == 0) {
+        //return new BackgroundCommand(cmd_line, jobs_list);
+    } else if (firstWord.compare("quit") == 0) {
+        //return new QuitCommand(cmd_line, jobs_list);
+    } else if (firstWord.compare("kill") == 0) {
+        //return new KillCommand(cmd_line, jobs_list);
+    } else if (firstWord.compare("fare") == 0) {
+        //return new FareCommand(cmd_line);
+    } else {
+        return new ExternalCommand(cmd_line);
     }
+
+    return nullptr;
+}
+
+void SmallShell::executeCommand(const char *cmd_line) {
+    // TODO: Add your implementation here
+    Command *cmd = CreateCommand(cmd_line);
+    if (cmd == nullptr) { //if unrecognized command was entered
+        return;
+    }
+    cmd->execute();
+    // Please note that you must fork smash process for some commands (e.g., external commands....)
+}

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #define COMMAND_ARGS_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
+#define MAX_SIG 31
 using namespace std;
 
 class SmashErrors
@@ -145,7 +146,8 @@ class JobsList {
       time_t getEnterTime(){return enter_time;}
       Command * getCmd(){return cmd;}
       pid_t getJobPid() {return job_pid;}
-      void resume(){is_stopped=false;}
+      void resume(){this->is_stopped=false;}
+      void stop(){this->is_stopped=true;}
   };
  int max_job_id = 0; //counts the num of jobs. Need for naming the next job
  std::vector<JobEntry *> jobs_vect;
@@ -217,9 +219,10 @@ class SetcoreCommand : public BuiltInCommand {
 
 class KillCommand : public BuiltInCommand {
   /* Bonus */
+  JobsList* jobs;
  // TODO: Add your data members
  public:
-  KillCommand(const char* cmd_line, JobsList* jobs);
+  KillCommand(const char* cmd_line, JobsList* jobs): BuiltInCommand(cmd_line), jobs(jobs) {};
   virtual ~KillCommand() {}
   void execute() override;
 };
