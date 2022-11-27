@@ -52,7 +52,7 @@ protected:
   //virtual void cleanup();
   /***Our Own Methods*/
   const char * getCommandLine(){return cmd_line;};
-  char* getCommandLineNoneConst(){return strdup(cmd_line);}
+  char*  getCommandLineNoneConst(){return strdup(cmd_line);}
   std::string getCommand();
 };
 

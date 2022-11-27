@@ -598,11 +598,11 @@ void ComplexExternalCommand::execute() {
             return;
         }
     else{ // pid != 0 Parent code
-        free(cmd_line);
         child_pid = pid;
         if(!this->is_background){
             if (waitpid(child_pid, nullptr, WUNTRACED) == SYS_FAIL) {
                 this->err.PrintSysFailError("waitpid");
+                free(cmd_line);
                 return;
             }
         else{ //in background
