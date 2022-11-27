@@ -78,30 +78,12 @@ class PipeCommand : public Command {
 class RedirectionCommand : public Command {
  // TODO: Add your data members
  public:
-  explicit RedirectionCommand(const char* cmd_line);
+  explicit RedirectionCommand(const char* cmd_line): Command(cmd_line){};
   virtual ~RedirectionCommand() {}
   void execute() override;
   //void prepare() override;
   //void cleanup() override;
 };
-
-/*class SimpleExternalCommand : public ExternalCommand {
-public:
-    explicit SimpleExternalCommand(const char* cmd_line, bool is_background, int num_arguments,
-                                   char ** arguments): ExternalCommand(cmd_line, is_background, num_arguments, arguments){};
-    virtual ~SimpleExternalCommand() {}
-    void execute() override;
-
-};
-
-class ComplexExternalCommand : public ExternalCommand {
-public:
-    explicit ComplexExternalCommand(const char* cmd_line, bool is_background, int num_arguments,
-                                    char ** arguments): ExternalCommand(cmd_line, is_background, num_arguments, arguments){};
-    virtual ~ComplexExternalCommand() {}
-    void execute() override;
-
-};*/
 
 class Chprompt : public BuiltInCommand {
 public:

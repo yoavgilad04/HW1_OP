@@ -11,6 +11,10 @@
 using namespace std;
 #define SYS_FAIL -1
 #define COMPLEX_CHAR "*?"
+#define _POSIX_SOURCE
+
+#include <fcntl.h>
+
 const std::string WHITESPACE = " \n\r\t\f\v";
 
 #if 0
@@ -504,23 +508,16 @@ void ExternalCommand::execute() {
         _removeBackgroundSign(command_copy);
     }
 
-
     //parse to args without &
     char *args[COMMAND_ARGS_MAX_LENGTH];
     int num_args = _parseCommandLine(command_copy, args);
     args[num_args] = 0;
 
-    //string only_command = this->getCommand();
-    //char command[only_command.length()];
-    //strncpy(command, only_command.c_str(), only_command.length());
-    //args[0] = command;
-    //CHECK IF COMPLEX OR SIMPLE
     string cmd_s = _trim(string(this->getCommandLine()));
 
     SmallShell &shell = SmallShell::getInstance();
 
     if (cmd_s.find_first_of(COMPLEX_CHAR) != std::string::npos) {
-//TODO: ADD COMPLEX
         //char *cmd_line = this->getCommandLineNoneConst();
         char *file_path = "/bin/bash";
         char *flag = "-c";
@@ -561,11 +558,11 @@ void ExternalCommand::execute() {
             return;
         } else if (pid == 0) { //son
             if (setpgrp() == SYS_FAIL) {
-                perror("setpgrp");
+                this->err.PrintSysFailError("setpgrp");
                 return;
             }
             if (execvp(args[0], args) == SYS_FAIL) {
-                perror("execvp");
+                this->err.PrintSysFailError("execvp");
                 return;
             }
         } else { //father
@@ -573,7 +570,7 @@ void ExternalCommand::execute() {
                 shell.GetJobList()->addJob(this, pid, false);
             } else {
                 if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
-                    perror("waitpid");
+                    this->err.PrintSysFailError("waitpid");
                 }
             }
         }
@@ -599,73 +596,128 @@ void ExternalCommand::execute() {
 
 
 /***--------------Redirection Command implementation--------------***/
+void RedirectionCommand::execute() {
 
+    string command_trim = _trim(this->getCommandLine());
+    char command_copy[COMMAND_ARGS_MAX_LENGTH];
+    strcpy(command_copy, command_trim.c_str());
 
+    char *args[COMMAND_ARGS_MAX_LENGTH];
+    int num_args = _parseCommandLine(command_copy, args);
+    args[num_args] = 0;
 
-/***--------------SmallShell implementation--------------***/
+    string cmd_s = _trim(string(this->getCommandLine()));
+    char filename[COMMAND_ARGS_MAX_LENGTH];
 
-void SmallShell::ChangePrompt(string new_prompt) {
-    if (new_prompt.empty()) {
-        this->prompt = "smash> ";
-    } else {
-        this->prompt = new_prompt + "> ";
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        close(1);
+
+        if (cmd_s.find_first_of('>') != std::string::npos) {
+            if (setpgrp() == SYS_FAIL) {
+                this->err.PrintSysFailError("setpgrp");
+                return;
+            }
+
+            int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
+            if (fd < 0) {
+                this->err.PrintSysFailError("open");
+                return;
+            }
+            if (execv(args[0], args) == SYS_FAIL) {
+                this->err.PrintSysFailError("execv");
+                return;
+            } else if (cmd_s.find_first_of(">>") != std::string::npos) {
+                if (setpgrp() == SYS_FAIL) {
+                    this->err.PrintSysFailError("setpgrp");
+                    return;
+                }
+
+                int fd = open(filename, O_WRONLY | O_APPEND | O_CREAT | O_TRUNC);
+
+                if (fd < 0) {
+                    this->err.PrintSysFailError("open");
+                    return;
+                }
+
+                if (execv(args[0], args) == SYS_FAIL) {
+                    this->err.PrintSysFailError("execv");
+                    return;
+                }
+            } else {
+                wait(nullptr);
+            }
+        }
     }
 }
 
+/***--------------SmallShell implementation--------------***/
 
-SmallShell::SmallShell() {
-    this->jobs_list = new JobsList();
-    this->p_last_dir = nullptr;
-}
+    void SmallShell::ChangePrompt(string new_prompt) {
+        if (new_prompt.empty()) {
+            this->prompt = "smash> ";
+        } else {
+            this->prompt = new_prompt + "> ";
+        }
+    }
 
-SmallShell::~SmallShell() {
+
+    SmallShell::SmallShell()
+    {
+        this->jobs_list = new JobsList();
+        this->p_last_dir = nullptr;
+    }
+
+    SmallShell::~SmallShell()
+    {
 // TODO: add your implementation
-}
+    }
 
 /**
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
 */
-Command *SmallShell::CreateCommand(const char *cmd_line) {
+    Command *SmallShell::CreateCommand(const char *cmd_line) {
 
-    string cmd_s = _trim(string(cmd_line));
-    string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
-    if (firstWord.back() == '&') {
-        firstWord.pop_back();
+        string cmd_s = _trim(string(cmd_line));
+        string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
+        if (firstWord.back() == '&') {
+            firstWord.pop_back();
+        }
+
+        if (firstWord.compare("showpid") == 0) {
+            return new ShowPidCommand(cmd_line);
+        } else if (firstWord.compare("chprompt") == 0) {
+            return new Chprompt(cmd_line);
+        } else if (firstWord.compare("pwd") == 0) {
+            return new GetCurrDirCommand(cmd_line);
+        } else if (firstWord.compare("cd") == 0) {
+            return new ChangeDirCommand(cmd_line, &p_last_dir);
+        } else if (firstWord.compare("jobs") == 0) {
+            return new JobsCommand(cmd_line, jobs_list);
+        } else if (firstWord.compare("fg") == 0) {
+            return new ForegroundCommand(cmd_line, jobs_list);
+        } else if (firstWord.compare("bg") == 0) {
+            //return new BackgroundCommand(cmd_line, jobs_list);
+        } else if (firstWord.compare("quit") == 0) {
+            //return new QuitCommand(cmd_line, jobs_list);
+        } else if (firstWord.compare("kill") == 0) {
+            //return new KillCommand(cmd_line, jobs_list);
+        } else if (firstWord.compare("fare") == 0) {
+            //return new FareCommand(cmd_line);
+        } else {
+            return new ExternalCommand(cmd_line);
+        }
+
+        return nullptr;
     }
 
-    if (firstWord.compare("showpid") == 0) {
-        return new ShowPidCommand(cmd_line);
-    } else if (firstWord.compare("chprompt") == 0) {
-        return new Chprompt(cmd_line);
-    } else if (firstWord.compare("pwd") == 0) {
-        return new GetCurrDirCommand(cmd_line);
-    } else if (firstWord.compare("cd") == 0) {
-        return new ChangeDirCommand(cmd_line, &p_last_dir);
-    } else if (firstWord.compare("jobs") == 0) {
-        return new JobsCommand(cmd_line, jobs_list);
-    } else if (firstWord.compare("fg") == 0) {
-        return new ForegroundCommand(cmd_line, jobs_list);
-    } else if (firstWord.compare("bg") == 0) {
-        //return new BackgroundCommand(cmd_line, jobs_list);
-    } else if (firstWord.compare("quit") == 0) {
-        //return new QuitCommand(cmd_line, jobs_list);
-    } else if (firstWord.compare("kill") == 0) {
-        //return new KillCommand(cmd_line, jobs_list);
-    } else if (firstWord.compare("fare") == 0) {
-        //return new FareCommand(cmd_line);
-    } else {
-        return new ExternalCommand(cmd_line);
+    void SmallShell::executeCommand(const char *cmd_line) {
+        // TODO: Add your implementation here
+        Command *cmd = CreateCommand(cmd_line);
+        if (cmd == nullptr) { //if unrecognized command was entered
+            return;
+        }
+        cmd->execute();
+        // Please note that you must fork smash process for some commands (e.g., external commands....)
     }
-
-    return nullptr;
-}
-
-void SmallShell::executeCommand(const char *cmd_line) {
-    // TODO: Add your implementation here
-    Command *cmd = CreateCommand(cmd_line);
-    if (cmd == nullptr) { //if unrecognized command was entered
-        return;
-    }
-    cmd->execute();
-    // Please note that you must fork smash process for some commands (e.g., external commands....)
-}
