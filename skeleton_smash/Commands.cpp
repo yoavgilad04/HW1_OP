@@ -24,36 +24,33 @@ const std::string WHITESPACE = " \n\r\t\f\v";
 #define FUNC_EXIT()
 #endif
 
-string _ltrim(const std::string& s)
-{
-  size_t start = s.find_first_not_of(WHITESPACE);
-  return (start == std::string::npos) ? "" : s.substr(start);
+string _ltrim(const std::string &s) {
+    size_t start = s.find_first_not_of(WHITESPACE);
+    return (start == std::string::npos) ? "" : s.substr(start);
 }
 
-string _rtrim(const std::string& s)
-{
-  size_t end = s.find_last_not_of(WHITESPACE);
-  return (end == std::string::npos) ? "" : s.substr(0, end + 1);
+string _rtrim(const std::string &s) {
+    size_t end = s.find_last_not_of(WHITESPACE);
+    return (end == std::string::npos) ? "" : s.substr(0, end + 1);
 }
 
-string _trim(const std::string& s)
-{
-  return _rtrim(_ltrim(s));
+string _trim(const std::string &s) {
+    return _rtrim(_ltrim(s));
 }
 
 
-int _parseCommandLine(const char* cmd_line, char** args) { ////!!!!!!! remember to free everytime calling this function
-  FUNC_ENTRY()
-  int i = 0;
-  std::istringstream iss(_trim(string(cmd_line)).c_str());
-  for(std::string s; iss >> s; ) {
-    args[i] = (char*)malloc(s.length()+1);
-    memset(args[i], 0, s.length()+1);
-    strcpy(args[i], s.c_str());
-    args[++i] = NULL;
-  }
-  return i;
-  FUNC_EXIT()
+int _parseCommandLine(const char *cmd_line, char **args) { ////!!!!!!! remember to free everytime calling this function
+    FUNC_ENTRY()
+    int i = 0;
+    std::istringstream iss(_trim(string(cmd_line)).c_str());
+    for (std::string s; iss >> s;) {
+        args[i] = (char *) malloc(s.length() + 1);
+        memset(args[i], 0, s.length() + 1);
+        strcpy(args[i], s.c_str());
+        args[++i] = NULL;
+    }
+    return i;
+    FUNC_EXIT()
 }
 
 void free_args(char **args, int args_size) {
@@ -115,13 +112,12 @@ string Command::getCommand() {
 
 
 void Chprompt::execute() { //TODO: ADD ERRORS
-    SmallShell & shell = SmallShell::getInstance();
-    char* args[PATH_MAX];
+    SmallShell &shell = SmallShell::getInstance();
+    char *args[PATH_MAX];
     int num_args = _parseCommandLine(this->getCommandLine(), args);
-    if (num_args==1){
-        shell.ChangePrompt(NULL);
-    }
-    else if (num_args==2){
+    if (num_args == 1) {
+        shell.ChangePrompt("");
+    } else if (num_args == 2) {
         shell.ChangePrompt(args[1]);
     }
 }
@@ -133,52 +129,45 @@ void ShowPidCommand::execute() {
 }
 
 void GetCurrDirCommand::execute() {
-  char curr_path[PATH_MAX];
-  if (getcwd(curr_path, (size_t)PATH_MAX) == NULL)
-  {
-      this->err.PrintSysFailError("getcwd");
-      return;
-  }
-  else{
-    cout<<curr_path<<endl;
-    return;
-  }
+    char curr_path[PATH_MAX];
+    if (getcwd(curr_path, (size_t) PATH_MAX) == NULL) {
+        this->err.PrintSysFailError("getcwd");
+        return;
+    } else {
+        cout << curr_path << endl;
+        return;
+    }
 }
 
 void ChangeDirCommand::execute() {
-    char* args[PATH_MAX];
+    char *args[PATH_MAX];
     string cmd = this->getCommand();
     int num_args = _parseCommandLine(this->getCommandLine(), args);
-    if(num_args > 2)
-    {
+    if (num_args > 2) {
         this->err.PrintTooManyArgs(cmd);
         free_args(args, num_args);
         return;
     }
-    if(num_args == 1)
-    {
+    if (num_args == 1) {
         /// todo: Taking care if only cd was written
         free_args(args, num_args);
         return;
     }
-    char*  p_current = new char[PATH_MAX];
-    char * makaf = "-";
+    char *p_current = new char[PATH_MAX];
+    char *makaf = "-";
 
-    if(getcwd(p_current, (size_t)PATH_MAX) == NULL)
-    {
+    if (getcwd(p_current, (size_t) PATH_MAX) == NULL) {
         this->err.PrintSysFailError("getcwd");
         return;
     }
-    if (strcmp(args[1],makaf) == 0) // second argument is -
+    if (strcmp(args[1], makaf) == 0) // second argument is -
     {
-        if (p_last_dir == nullptr)
-        {
+        if (p_last_dir == nullptr) {
             this->err.PrintOLDPWDFail(cmd);
             free_args(args, num_args);
             return;
         }
-        if ((chdir(*p_last_dir)) == SYS_FAIL)
-        {
+        if ((chdir(*p_last_dir)) == SYS_FAIL) {
             this->err.PrintSysFailError("chdir");
             free_args(args, num_args);
             return;
@@ -187,21 +176,15 @@ void ChangeDirCommand::execute() {
         *p_last_dir = p_current;
         free_args(args, num_args);
         return;
-    }
-
-    else {
-        if((chdir(args[1])) == SYS_FAIL)
-        {
+    } else {
+        if ((chdir(args[1])) == SYS_FAIL) {
             this->err.PrintSysFailError("chdir");
             free_args(args, num_args);
             return;
         }
-        if(p_last_dir == nullptr)
-        {
+        if (p_last_dir == nullptr) {
             *p_last_dir = p_current;
-        }
-        else
-        {
+        } else {
             delete *p_last_dir;
             *p_last_dir = p_current;
         }
@@ -236,8 +219,7 @@ void ForegroundCommand::execute() {
     } else if (num_args == 2) // specific job was entered
     {
         string job_id = args[1];
-        if (!is_an_integer(job_id))
-        {
+        if (!is_an_integer(job_id)) {
             this->err.PrintInvalidArgs(cmd);
             free_args(args, num_args);
             return;
@@ -249,8 +231,7 @@ void ForegroundCommand::execute() {
             free_args(args, num_args);
             return;
         }
-    }
-    else //more then 2 arguments
+    } else //more then 2 arguments
     {
         this->err.PrintInvalidArgs(cmd);
         free_args(args, num_args);
@@ -259,16 +240,12 @@ void ForegroundCommand::execute() {
 
     pid_t pid = job_to_fg->getJobPid();
     cout << this->getCommandLine() << ": " << pid << endl; //success
-    if (kill(pid, SIGCONT) == SYS_FAIL)
-    {
+    if (kill(pid, SIGCONT) == SYS_FAIL) {
         this->err.PrintSysFailError("kill");
         free_args(args, num_args);
         return;
-    }
-    else
-    {
-        if(waitpid(pid, nullptr, WCONTINUED) == SYS_FAIL)
-        {
+    } else {
+        if (waitpid(pid, nullptr, WCONTINUED) == SYS_FAIL) {
             this->err.PrintSysFailError("waitpid");
             free_args(args, num_args);
             return;
@@ -298,8 +275,7 @@ void BackgroundCommand::execute() {
             return;
         }
 
-    }
-    else if (num_args == 2) // specific job was entered
+    } else if (num_args == 2) // specific job was entered
     {
         string job_id = args[1];
         if (!is_an_integer(job_id)) {
@@ -313,14 +289,12 @@ void BackgroundCommand::execute() {
             this->err.PrintJobIDDoesntExits(cmd, job_id_num);
             free_args(args, num_args);
             return;
-        }
-        else if (!job_to_bg->isStopped()){
+        } else if (!job_to_bg->isStopped()) {
             this->err.PrintJobAlreadyRunningInBG(cmd, job_id_num);
             free_args(args, num_args);
             return;
         }
-    }
-    else {
+    } else {
         this->err.PrintInvalidArgs(cmd);
         free_args(args, num_args);
         return;
@@ -523,50 +497,82 @@ void ExternalCommand::execute() {
     bool is_background = _isBackgroundComamnd(this->getCommandLine());
 /***PARSER:*/
     //remove &
-    int size = strlen(this->getCommandLine());
-    char command_copy[size];
-    strncpy(command_copy, this->getCommand().c_str(), size);
-    _removeBackgroundSign(command_copy);
+    string command_trim = _trim(this->getCommandLine());
+    char command_copy[COMMAND_ARGS_MAX_LENGTH];
+    strcpy(command_copy, command_trim.c_str());
+    if (is_background) {
+        _removeBackgroundSign(command_copy);
+    }
+
 
     //parse to args without &
     char *args[COMMAND_ARGS_MAX_LENGTH];
     int num_args = _parseCommandLine(command_copy, args);
+    args[num_args] = 0;
 
-    string only_command = this->getCommand();
-    char command[only_command.length()];
-    strncpy(command, only_command.c_str(), only_command.length());
-    args[0] = command;
-
+    //string only_command = this->getCommand();
+    //char command[only_command.length()];
+    //strncpy(command, only_command.c_str(), only_command.length());
+    //args[0] = command;
     //CHECK IF COMPLEX OR SIMPLE
     string cmd_s = _trim(string(this->getCommandLine()));
 
-    if(cmd_s.find_first_of(COMPLEX_CHAR) != std::string::npos){
+    SmallShell &shell = SmallShell::getInstance();
+
+    if (cmd_s.find_first_of(COMPLEX_CHAR) != std::string::npos) {
 //TODO: ADD COMPLEX
+        //char *cmd_line = this->getCommandLineNoneConst();
+        char *file_path = "/bin/bash";
+        char *flag = "-c";
+        char *array_of_arg[] = {file_path, flag, command_copy, nullptr};
 
-    }
-    else{
         pid_t pid = fork();
-
-        if(pid==SYS_FAIL){
-            perror("fork");
+        pid_t child_pid;
+        if (pid == SYS_FAIL) {
+            this->err.PrintSysFailError("fork");
             return;
         }
-        else if (pid==0){ //son
-            if (setpgrp()==SYS_FAIL){
+        if (pid == 0) {
+            if (setpgrp() == SYS_FAIL) {
+                this->err.PrintSysFailError("setpgrp");
+                return;
+            }
+            if (execv(file_path, array_of_arg) == SYS_FAIL) {
+                this->err.PrintSysFailError("execv");
+                return;
+            } else { // pid != 0 Parent code
+                child_pid = pid;
+                if (!is_background) {
+                    if (waitpid(child_pid, nullptr, WUNTRACED) == SYS_FAIL) {
+                        this->err.PrintSysFailError("waitpid");
+                        return;
+                    } else { //in background
+                        shell.GetJobList()->addJob(this, child_pid, false);
+                    }
+                }
+            }
+        }
+
+    } else {
+        pid_t pid = fork();
+
+        if (pid == SYS_FAIL) {
+            perror("fork");
+            return;
+        } else if (pid == 0) { //son
+            if (setpgrp() == SYS_FAIL) {
                 perror("setpgrp");
                 return;
             }
-            if (execvp(command, args)==SYS_FAIL){
+            if (execvp(args[0], args) == SYS_FAIL) {
                 perror("execvp");
                 return;
             }
-        }
-        else{ //father
-            if(is_background){
-                jobs_vect->addJob(this, pid, false);
-            }
-            else{
-                if (waitpid(pid, nullptr, WUNTRACED)==SYS_FAIL){
+        } else { //father
+            if (is_background) {
+                shell.GetJobList()->addJob(this, pid, false);
+            } else {
+                if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
                     perror("waitpid");
                 }
             }
@@ -599,11 +605,10 @@ void ExternalCommand::execute() {
 /***--------------SmallShell implementation--------------***/
 
 void SmallShell::ChangePrompt(string new_prompt) {
-    if (new_prompt.empty()){
+    if (new_prompt.empty()) {
         this->prompt = "smash> ";
-    }
-    else{
-        this->prompt = new_prompt+"> ";
+    } else {
+        this->prompt = new_prompt + "> ";
     }
 }
 
@@ -628,40 +633,29 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
         firstWord.pop_back();
     }
 
-  if (firstWord.compare("showpid") == 0) {
-    return new ShowPidCommand(cmd_line);
-  }
-  else if(firstWord.compare("chprompt") == 0){
-      return new Chprompt(cmd_line);
-  }
-  else if (firstWord.compare("pwd") == 0) {
-    return new GetCurrDirCommand(cmd_line);
-  }
-  else if (firstWord.compare("cd") == 0) {
-    return new ChangeDirCommand(cmd_line, &p_last_dir);
-  }
-  else if (firstWord.compare("jobs") == 0) {
-    return new JobsCommand(cmd_line, jobs_list);
-  }
-  else if (firstWord.compare("fg") == 0) {
-    return new ForegroundCommand(cmd_line, jobs_list);
-  }
-  else if (firstWord.compare("bg") == 0) {
-    //return new BackgroundCommand(cmd_line, jobs_list);
-  }
-  else if (firstWord.compare("quit") == 0) {
-    //return new QuitCommand(cmd_line, jobs_list);
-  }
-  else if (firstWord.compare("kill") == 0) {
-    //return new KillCommand(cmd_line, jobs_list);
-  }
-  else if (firstWord.compare("fare") == 0) {
-    //return new FareCommand(cmd_line);
-  }
-
-  else {
-    return new ExternalCommand(cmd_line, jobs_list);
-  }
+    if (firstWord.compare("showpid") == 0) {
+        return new ShowPidCommand(cmd_line);
+    } else if (firstWord.compare("chprompt") == 0) {
+        return new Chprompt(cmd_line);
+    } else if (firstWord.compare("pwd") == 0) {
+        return new GetCurrDirCommand(cmd_line);
+    } else if (firstWord.compare("cd") == 0) {
+        return new ChangeDirCommand(cmd_line, &p_last_dir);
+    } else if (firstWord.compare("jobs") == 0) {
+        return new JobsCommand(cmd_line, jobs_list);
+    } else if (firstWord.compare("fg") == 0) {
+        return new ForegroundCommand(cmd_line, jobs_list);
+    } else if (firstWord.compare("bg") == 0) {
+        //return new BackgroundCommand(cmd_line, jobs_list);
+    } else if (firstWord.compare("quit") == 0) {
+        //return new QuitCommand(cmd_line, jobs_list);
+    } else if (firstWord.compare("kill") == 0) {
+        //return new KillCommand(cmd_line, jobs_list);
+    } else if (firstWord.compare("fare") == 0) {
+        //return new FareCommand(cmd_line);
+    } else {
+        return new ExternalCommand(cmd_line);
+    }
 
     return nullptr;
 }
@@ -669,7 +663,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
 void SmallShell::executeCommand(const char *cmd_line) {
     // TODO: Add your implementation here
     Command *cmd = CreateCommand(cmd_line);
-    if (cmd == nullptr) { //if unrecognize command was entered
+    if (cmd == nullptr) { //if unrecognized command was entered
         return;
     }
     cmd->execute();

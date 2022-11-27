@@ -60,11 +60,9 @@ class BuiltInCommand : public Command {
     virtual ~BuiltInCommand() {}
 };
 
-class JobsList;
 class ExternalCommand : public Command {
-    JobsList * jobs_vect;
 public:
-  ExternalCommand(const char* cmd_line, JobsList * jobs_vect): Command(cmd_line),jobs_vect(jobs_vect){};
+  ExternalCommand(const char* cmd_line): Command(cmd_line){};
   virtual ~ExternalCommand() {}
   void execute() override;
 };
@@ -266,6 +264,7 @@ public:
 
       void ChangePrompt(const string new_prompt);
       string GetPrompt(){return prompt;}
+      JobsList * GetJobList(){return jobs_list;}
 };
 
 
