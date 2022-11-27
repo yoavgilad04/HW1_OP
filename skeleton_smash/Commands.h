@@ -21,6 +21,9 @@ public:
     void PrintInvalidArgs(string cmd)
     {cerr <<this->pre_error<<cmd<<": invalid arguments";}
 
+    void PrintInvalidCore(string cmd)
+    {cerr <<this->pre_error<<cmd<<": invalid core number";}
+
     void PrintNoStoppedJobs(string cmd)
     {cerr <<this->pre_error<<cmd<<": there is no stopped jobs to resume";}
 
@@ -35,7 +38,7 @@ public:
 
     void PrintSysFailError(string sys_call_name)
     {
-        string msg = this->pre_error + sys_call_name + "failed ";
+        string msg = this->pre_error + sys_call_name + " failed ";
         perror(msg.c_str());
     } //c_str convert string to char
 };
@@ -44,6 +47,7 @@ class Command {
     const char* cmd_line;
 protected:
     SmashErrors err;
+    char** setUpArgs(char*** args, const char * cmd_line, string * cmd, int *args_num = nullptr);
  public:
   Command(const char* cmd_line):cmd_line(cmd_line){};
   virtual ~Command(){};
@@ -208,12 +212,11 @@ class FareCommand : public BuiltInCommand {
   void execute() override;
 };
 
-class SetcoreCommand : public BuiltInCommand {
-  /* Optional */
-  // TODO: Add your data members
+class SetCoreCommand : public BuiltInCommand {
+  JobsList * jobs;
  public:
-  SetcoreCommand(const char* cmd_line);
-  virtual ~SetcoreCommand() {}
+  SetCoreCommand(const char* cmd_line, JobsList* jobs): BuiltInCommand(cmd_line), jobs(jobs){};
+  virtual ~SetCoreCommand() {}
   void execute() override;
 };
 

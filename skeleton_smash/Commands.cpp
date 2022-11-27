@@ -11,7 +11,6 @@
 using namespace std;
 #define SYS_FAIL -1
 #define COMPLEX_CHAR "*?"
-#define _POSIX_SOURCE
 
 #include <fcntl.h>
 
@@ -65,6 +64,14 @@ void free_args(char **args, int args_size) {
     }
 }
 
+char** Command::setUpArgs(char ***args, const char *cmd_line, string * cmd, int *args_num) {
+    *cmd = this->getCommand();
+    if (args_num == nullptr)
+        return nullptr;
+    *args[COMMAND_ARGS_MAX_LENGTH]; //char**
+    *args_num = _parseCommandLine(this->getCommandLine(), *args);
+    return nullptr;
+}
 /*string Command::getCommand() {
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
@@ -113,6 +120,20 @@ bool is_valid_signal(string signal) {
         return false;
 
     return true;
+}
+
+bool is_valid_core(string core_str){
+    if(!is_an_integer(core_str))
+        return false;
+
+    int number_of_cores = sysconf(_SC_NPROCESSORS_CONF);
+    int core_num = stoi(core_str);
+
+    if (!core_num <= number_of_cores) //core given doesnt exists in computer
+        return false;
+
+    return true;
+
 }
 
 
@@ -194,7 +215,7 @@ void ChangeDirCommand::execute() {
         return;
     }
     char *p_current = new char[PATH_MAX];
-    char *makaf = "-";
+    char * makaf = "-";
 
     if (getcwd(p_current, (size_t) PATH_MAX) == NULL) {
         this->err.PrintSysFailError("getcwd");
@@ -341,7 +362,7 @@ void BackgroundCommand::execute() {
     }
 
     pid_t pid = job_to_bg->getJobPid();
-    cout << this->getCommandLine() << ' : ' << pid << endl;
+    cout << this->getCommandLine() << " : " << pid << endl;
 
     //resume in background
     if (kill(pid, SIGCONT) == SYS_FAIL) {
@@ -367,7 +388,6 @@ void KillCommand::execute() {
         return;
     }
     string signal_str = args[1];
-    string sig_without_makaf = signal_str.substr(1, signal_str.length()); // removing the '-' from the beginning
     if (is_valid_signal(signal_str)) //check if the command second args startswith -
     {
         this->err.PrintInvalidArgs(cmd);
@@ -441,8 +461,49 @@ void FareCommand::execute() {
 /***SetcoreCommand implementation
  * this command sets the core that the job with job id run on.
 */
-void SetcoreCommand::execute() {
-    return;
+void SetCoreCommand::execute() {
+    string cmd = this->getCommand();
+    char *args[COMMAND_ARGS_MAX_LENGTH];
+    int num_args = _parseCommandLine(this->getCommandLine(), args);
+    int job_id_num;
+    int core_num;
+    JobsList::JobEntry *job;
+    if (num_args != 3) {
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
+    }
+    string core_str = args[2];
+    if (is_valid_core(core_str)) //check if the core given is valid
+    {
+        this->err.PrintInvalidCore(cmd);
+        free_args(args, num_args);
+        return;
+    }
+    core_num = stoi(core_str);
+    string job_id = args[1];
+    if (!is_an_integer(job_id)) {
+        this->err.PrintInvalidArgs(cmd); //todo: if job id isn't an integer should it be jobdoesntexits or invalidargs
+        free_args(args, num_args);
+        return;
+    }
+    job_id_num = stoi(job_id); // stio convert a string to number
+    job = jobs->getJobById(job_id_num);
+    if (job == nullptr) {
+        this->err.PrintJobIDDoesntExits(cmd, job_id_num);
+        free_args(args, num_args);
+        return;
+    }
+    cpu_set_t my_set;
+    CPU_ZERO(&my_set);
+    CPU_SET(core_num, &my_set);
+    pid_t job_pid = job->getJobPid();
+    if(sched_setaffinity(job_pid, sizeof(cpu_set_t), &my_set) == SYS_FAIL){
+        this->err.PrintSysFailError("sched_setaffinity");
+        free_args(args, num_args);
+        return;
+    }
+    free_args(args, num_args);
 }
 
 
@@ -466,9 +527,9 @@ void JobsList::printJobsList() {
     removeFinishedJobs();
 
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); ++it) {
-        time_t *curr;
-        time(curr);
-        time_t diff = difftime((*it)->getEnterTime(), *curr);
+        time_t curr;
+        time(&curr);
+        time_t diff = difftime(curr, (*it)->getEnterTime());
         if ((*it)->isStopped()) {
             cout << (*it)->getJobId() << ' ' << (*it)->getCmd()->getCommandLine() << " : " << (*it)->getJobPid()
                  << ' ' << diff << ' ' << "(stopped)" << endl;
@@ -801,6 +862,8 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
         //return new KillCommand(cmd_line, jobs_list);
     } else if (firstWord.compare("fare") == 0) {
         //return new FareCommand(cmd_line);
+    } else if (firstWord.compare("setcore") == 0) {
+        return new SetCoreCommand(cmd_line, jobs_list);
     } else {
         return new ExternalCommand(cmd_line);
     }
