@@ -122,11 +122,16 @@ bool is_valid_signal(string signal) {
     return true;
 }
 
+//todo: entering all utility functions to classes
 bool is_valid_core(string core_str){
     if(!is_an_integer(core_str))
         return false;
 
     int number_of_cores = sysconf(_SC_NPROCESSORS_CONF);
+    if (number_of_cores == SYS_FAIL)
+    {
+        perror(" ");
+    }
     int core_num = stoi(core_str);
 
     if (!core_num <= number_of_cores) //core given doesnt exists in computer
