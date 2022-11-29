@@ -315,7 +315,7 @@ void ForegroundCommand::execute() {
         free_args(args, num_args);
         return;
     }
-
+    SmallShell& shell = SmallShell::getInstance();
     pid_t pid = job_to_fg->getJobPid();
     cout << job_to_fg->getCmd()->getCommandLine() << ": " << pid << endl; //success
     if (kill(pid, SIGCONT) == SYS_FAIL) {
@@ -323,11 +323,15 @@ void ForegroundCommand::execute() {
         free_args(args, num_args);
         return;
     } else {
+        shell.setFgPID(pid);
+        shell.setFgCmd(this);
         if (waitpid(pid, nullptr, WCONTINUED) == SYS_FAIL) {
             this->err.PrintSysFailError("waitpid");
             free_args(args, num_args);
             return;
         }
+        shell.setFgPID(-1);
+        shell.setFgCmd(nullptr);
     }
     jobs->removeJobById(job_id_num);
     free_args(args, num_args);
@@ -515,7 +519,7 @@ void SetCoreCommand::execute() {
     CPU_ZERO(&my_set);
     CPU_SET(core_num, &my_set);
     pid_t job_pid = job->getJobPid();
-    if (sched_setaffinity(job_pid, sizeof(cpu_set_t), &my_set) == SYS_FAIL) {
+    if(sched_setaffinity(job_pid, sizeof(cpu_set_t), &my_set) == SYS_FAIL){
         this->err.PrintSysFailError("sched_setaffinity");
         free_args(args, num_args);
         return;
@@ -533,7 +537,6 @@ void SetCoreCommand::execute() {
  */
 void JobsList::addJob(Command *cmd, pid_t job_pid, bool isStopped) {
     removeFinishedJobs();
-
     this->max_job_id++;
     JobEntry *new_job = new JobEntry(this->max_job_id, job_pid, isStopped, cmd);
     this->jobs_vect.push_back(new_job);
@@ -708,8 +711,6 @@ void ExternalCommand::execute() {
             this->err.PrintSysFailError("fork");
             return;
         }
-        shell.setFgPID(child_pid);
-        shell.setFgCmd(this);
         if (pid == 0) {
             if (setpgrp() == SYS_FAIL) {
                 this->err.PrintSysFailError("setpgrp");
@@ -722,7 +723,10 @@ void ExternalCommand::execute() {
                 child_pid = pid;
                 if (is_background) {
                     shell.GetJobList()->addJob(this, child_pid, false);
-                } else {
+                }
+                else{
+                    shell.setFgPID(child_pid);
+                    shell.setFgCmd(this);
                     if (waitpid(child_pid, nullptr, WUNTRACED) == SYS_FAIL) {
                         this->err.PrintSysFailError("waitpid");
                         return;
@@ -740,8 +744,7 @@ void ExternalCommand::execute() {
             perror("fork");
             return;
         }
-        shell.setFgPID(pid);
-        shell.setFgCmd(this);
+
         if (pid == 0) { //son
             if (setpgrp() == SYS_FAIL) {
                 this->err.PrintSysFailError("setpgrp");
@@ -755,7 +758,8 @@ void ExternalCommand::execute() {
             if (is_background) {
                 shell.GetJobList()->addJob(this, pid, false);
             } else {
-
+                shell.setFgPID(pid);
+                shell.setFgCmd(this);
                 if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
                     this->err.PrintSysFailError("waitpid");
                 }
