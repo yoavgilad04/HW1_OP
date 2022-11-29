@@ -719,42 +719,37 @@ void ExternalCommand::execute() {
                 return;
             } else { // pid != 0 Parent code
                 child_pid = pid;
-                if (!is_background) {
-                    shell.setFgPID(&child_pid);
-                    shell.setFgCmd(this);
+                if (is_background) {
+                    shell.GetJobList()->addJob(this, child_pid, false);
+                } else {
                     if (waitpid(child_pid, nullptr, WUNTRACED) == SYS_FAIL) {
                         this->err.PrintSysFailError("waitpid");
                         return;
-                    } else { //in background
-                        shell.GetJobList()->addJob(this, child_pid, false);
                     }
                 }
             }
-        }
 
-    } else {
-        pid_t pid = fork();
-
-        if (pid == SYS_FAIL) {
-            perror("fork");
-            return;
-        } else if (pid == 0) { //son
-            if (setpgrp() == SYS_FAIL) {
-                this->err.PrintSysFailError("setpgrp");
+        } else {
+            pid_t pid = fork();
+            if (pid == SYS_FAIL) {
+                perror("fork");
                 return;
-            }
-            if (execvp(args[0], args) == SYS_FAIL) {
-                this->err.PrintSysFailError("execvp");
-                return;
-            }
-        } else { //father
-            if (is_background) {
-                shell.GetJobList()->addJob(this, pid, false);
-            } else {
-                shell.setFgPID(&pid);
-                shell.setFgCmd(this);
-                if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
-                    this->err.PrintSysFailError("waitpid");
+            } else if (pid == 0) { //son
+                if (setpgrp() == SYS_FAIL) {
+                    this->err.PrintSysFailError("setpgrp");
+                    return;
+                }
+                if (execvp(args[0], args) == SYS_FAIL) {
+                    this->err.PrintSysFailError("execvp");
+                    return;
+                }
+            } else { //father
+                if (is_background) {
+                    shell.GetJobList()->addJob(this, pid, false);
+                } else {
+                    if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
+                        this->err.PrintSysFailError("waitpid");
+                    }
                 }
             }
         }
@@ -861,13 +856,12 @@ void SmallShell::ChangePrompt(string new_prompt) {
 SmallShell::SmallShell() {
     this->jobs_list = new JobsList();
     this->p_last_dir = nullptr;
-    this->fg_pid = new pid_t ;
+    this->fg_pid = -1 ;
     this->fg_cmd = nullptr;
 }
 
 SmallShell::~SmallShell() {
     delete jobs_list;
-    delete fg_pid;
 }
 
 /**
@@ -907,7 +901,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     } else if (firstWord.compare("setcore") == 0) {
         return new SetCoreCommand(cmd_line, jobs_list);
     } else {
-        return new ExternalCommand(cmd_line, this->fg_pid);
+        return new ExternalCommand(cmd_line);
     }
 
     return nullptr;

@@ -71,9 +71,8 @@ class BuiltInCommand : public Command {
 };
 
 class ExternalCommand : public Command {
-    pid_t * fg_pid;
 public:
-  ExternalCommand(const char* cmd_line, pid_t * fg_pid): Command(cmd_line), fg_pid(fg_pid){};
+  ExternalCommand(const char* cmd_line): Command(cmd_line){};
   virtual ~ExternalCommand() {}
   void execute() override;
 };
@@ -252,7 +251,7 @@ class SmallShell {
     char* p_last_dir;
     JobsList* jobs_list;
     string prompt = "smash> ";
-    pid_t * fg_pid;
+    pid_t  fg_pid;
     Command * fg_cmd;
 public:
     SmallShell();
@@ -267,13 +266,8 @@ public:
       }
       ~SmallShell();
       void executeCommand(const char* new_prompt);
-      pid_t * getFgPID(){return this->fg_pid;};
-      void setFgPID(pid_t * pid){
-          if (pid == nullptr)
-              *(this->fg_pid) = -1;
-          else
-            *(this->fg_pid) = *pid;
-      }
+      pid_t getFgPID(){return this->fg_pid;};
+      void setFgPID(pid_t pid){this->fg_pid = pid;}
       Command * getFgCmd(){return this->fg_cmd;}
       void setFgCmd(Command* cmd){this->fg_cmd = cmd;}
       void ChangePrompt(const string new_prompt);
