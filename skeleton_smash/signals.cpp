@@ -42,5 +42,5 @@ void ctrlCHandler(int sig_num) {
 }
 
 void alarmHandler(int sig_num) {
-  // TODO: Add your implementation
+    // TODO: Add your implementation
 }

@@ -313,7 +313,7 @@ void ForegroundCommand::execute() {
         free_args(args, num_args);
         return;
     }
-
+    SmallShell& shell = SmallShell::getInstance();
     pid_t pid = job_to_fg->getJobPid();
     cout << job_to_fg->getCmd()->getCommandLine() << ": " << pid << endl; //success
     if (kill(pid, SIGCONT) == SYS_FAIL) {
@@ -321,11 +321,15 @@ void ForegroundCommand::execute() {
         free_args(args, num_args);
         return;
     } else {
+        shell.setFgPID(pid);
+        shell.setFgCmd(this);
         if (waitpid(pid, nullptr, WCONTINUED) == SYS_FAIL) {
             this->err.PrintSysFailError("waitpid");
             free_args(args, num_args);
             return;
         }
+        shell.setFgPID(-1);
+        shell.setFgCmd(nullptr);
     }
     jobs->removeJobById(job_id_num);
     free_args(args, num_args);
@@ -817,7 +821,7 @@ void PipeCommand::execute() {
         }
         int d_res;
         if (is_error)
-           d_res = dup2(fd[1], 2);
+            d_res = dup2(fd[1], 2);
         else
             d_res = dup2(fd[1], 1);
         if (d_res == SYS_FAIL){
