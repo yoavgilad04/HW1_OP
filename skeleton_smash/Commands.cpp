@@ -762,9 +762,76 @@ void ExternalCommand::execute() {
 }
 
 
+void PipeCommand::closePipe(int *fd) {
+    if (close(fd[0]) == SYS_FAIL || close(fd[1]) == SYS_FAIL) {
+        this->err.PrintSysFailError("close");
+    }
+}
+
 /***--------------Pipe Command implementation--------------***/
 
+PipeCommand::PipeCommand(const char* cmd_line): Command(cmd_line){
+    //is_append
+    string cmd_s = _trim(string(cmd_line));
+    if (cmd_s.find("|&") != std::string::npos) {
+        this->is_error = true;
+    }
 
+    string delimiter;
+    if (is_error) delimiter = "|&";
+    else delimiter = '|';
+
+    size_t pos = 0;
+    std::string cmd1 = cmd_s.substr(0, cmd_s.find(delimiter));
+    cmd_s.erase(0, pos + cmd1.length() + delimiter.length());
+    std::string cmd2 = cmd_s.substr(0, cmd_s.find(delimiter));
+    cmd2 = _trim(cmd2);
+
+    cmd1 = _trim(cmd1);
+    strcpy(command1, cmd1.c_str());
+    strcpy(command2, cmd2.c_str());
+
+    //TODO: add function to extract cmd1,cmd2
+
+}
+
+void PipeCommand::execute() {
+    SmallShell& shell = SmallShell::getInstance();
+    int fd[2];
+    pipe(fd);
+    pid_t c1_pid = fork();
+    if (c1_pid == SYS_FAIL){
+        this->err.PrintSysFailError("fork");
+        this->closePipe(fd);
+        return;
+    }
+    if (c1_pid == 0){
+        int d_res;
+        if (is_error)
+           d_res = dup2(fd[1], 3);
+        else
+            d_res = dup2(fd[1], 1);
+        if (d_res == SYS_FAIL){
+            this->err.PrintSysFailError("dup2");
+            this->closePipe(fd);
+            return;
+        }
+        this->closePipe(fd);
+        shell.executeCommand(this->command1);
+    }
+    pid_t c2_pid = fork();
+    if (c2_pid == 0){
+        int d_res = dup2(fd[0], 0);
+        if (d_res == SYS_FAIL){
+            this->err.PrintSysFailError("dup2");
+            this->closePipe(fd);
+            return;
+        }
+        this->closePipe(fd);
+        shell.executeCommand(this->command2);
+    }
+    this->closePipe(fd);
+}
 
 /***--------------Redirection Command implementation--------------***/
 RedirectionCommand::RedirectionCommand(const char* cmd_line): Command(cmd_line) {
@@ -884,6 +951,10 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
         return new RedirectionCommand(cmd_line);
     }
 
+    if(cmd_s.find_first_of("|&") != std::string::npos || cmd_s.find_first_of('|') != std::string::npos){
+        return new PipeCommand(cmd_line);
+    }
+
     if (firstWord.compare("showpid") == 0) {
         return new ShowPidCommand(cmd_line);
     } else if (firstWord.compare("chprompt") == 0) {
@@ -899,7 +970,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     } else if (firstWord.compare("bg") == 0) {
         return new BackgroundCommand(cmd_line, jobs_list);
     } else if (firstWord.compare("quit") == 0) {
-        return new QuitCommand(cmd_line, jobs_list);
+        //return new QuitCommand(cmd_line, jobs_list);
     } else if (firstWord.compare("kill") == 0) {
         //return new KillCommand(cmd_line, jobs_list);
     } else if (firstWord.compare("fare") == 0) {

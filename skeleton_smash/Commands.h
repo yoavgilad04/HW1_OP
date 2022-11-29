@@ -79,7 +79,10 @@ public:
 };
 
 class PipeCommand : public Command {
-  // TODO: Add your data members
+  char command1[COMMAND_ARGS_MAX_LENGTH];
+  char command2[COMMAND_ARGS_MAX_LENGTH];
+  bool is_error;
+  void closePipe(int * fd);
  public:
   PipeCommand(const char* cmd_line);
   virtual ~PipeCommand() {}
@@ -267,7 +270,7 @@ public:
       }
       ~SmallShell();
       void executeCommand(const char* new_prompt);
-      pid_t * getFgPID(){return this->fg_pid;};
+      pid_t * getFgPID(){return this->fg_pid;}
       void setFgPID(pid_t * pid){
           if (pid == nullptr)
               *(this->fg_pid) = -1;
