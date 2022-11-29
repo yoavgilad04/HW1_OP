@@ -704,6 +704,8 @@ void ExternalCommand::execute() {
             } else { // pid != 0 Parent code
                 child_pid = pid;
                 if (!is_background) {
+                    shell.setFgPID(&child_pid);
+                    shell.setFgCmd(this);
                     if (waitpid(child_pid, nullptr, WUNTRACED) == SYS_FAIL) {
                         this->err.PrintSysFailError("waitpid");
                         return;
@@ -733,6 +735,8 @@ void ExternalCommand::execute() {
             if (is_background) {
                 shell.GetJobList()->addJob(this, pid, false);
             } else {
+                shell.setFgPID(&pid);
+                shell.setFgCmd(this);
                 if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
                     this->err.PrintSysFailError("waitpid");
                 }
@@ -830,10 +834,13 @@ void SmallShell::ChangePrompt(string new_prompt) {
 SmallShell::SmallShell() {
     this->jobs_list = new JobsList();
     this->p_last_dir = nullptr;
+    this->fg_pid = new pid_t ;
+    this->fg_cmd = nullptr;
 }
 
 SmallShell::~SmallShell() {
-// TODO: add your implementation
+    delete jobs_list;
+    delete fg_pid;
 }
 
 /**
@@ -870,7 +877,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     } else if (firstWord.compare("setcore") == 0) {
         return new SetCoreCommand(cmd_line, jobs_list);
     } else {
-        return new ExternalCommand(cmd_line);
+        return new ExternalCommand(cmd_line, this->fg_pid);
     }
 
     return nullptr;
