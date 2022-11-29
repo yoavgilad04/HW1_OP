@@ -706,8 +706,6 @@ void ExternalCommand::execute() {
             this->err.PrintSysFailError("fork");
             return;
         }
-        shell.setFgPID(child_pid);
-        shell.setFgCmd(this);
         if (pid == 0) {
             if (setpgrp() == SYS_FAIL) {
                 this->err.PrintSysFailError("setpgrp");
@@ -722,6 +720,8 @@ void ExternalCommand::execute() {
                     shell.GetJobList()->addJob(this, child_pid, false);
                 }
                 else{
+                    shell.setFgPID(child_pid);
+                    shell.setFgCmd(this);
                     if (waitpid(child_pid, nullptr, WUNTRACED) == SYS_FAIL) {
                         this->err.PrintSysFailError("waitpid");
                         return;
@@ -739,8 +739,7 @@ void ExternalCommand::execute() {
             perror("fork");
             return;
         }
-        shell.setFgPID(pid);
-        shell.setFgCmd(this);
+
         if (pid == 0) { //son
             if (setpgrp() == SYS_FAIL) {
                 this->err.PrintSysFailError("setpgrp");
@@ -754,7 +753,8 @@ void ExternalCommand::execute() {
             if (is_background) {
                 shell.GetJobList()->addJob(this, pid, false);
             } else {
-
+                shell.setFgPID(pid);
+                shell.setFgCmd(this);
                 if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
                     this->err.PrintSysFailError("waitpid");
                 }
