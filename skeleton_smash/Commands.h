@@ -78,7 +78,10 @@ public:
 };
 
 class PipeCommand : public Command {
-  // TODO: Add your data members
+  char command1[COMMAND_ARGS_MAX_LENGTH];
+  char command2[COMMAND_ARGS_MAX_LENGTH];
+  bool is_error;
+  void closePipe(int * fd);
  public:
   PipeCommand(const char* cmd_line);
   virtual ~PipeCommand() {}
@@ -253,6 +256,7 @@ class SmallShell {
     string prompt = "smash> ";
     pid_t  fg_pid;
     Command * fg_cmd;
+    bool is_pipe = false;
 public:
     SmallShell();
     Command *CreateCommand(const char* cmd_line);
@@ -266,8 +270,8 @@ public:
       }
       ~SmallShell();
       void executeCommand(const char* new_prompt);
-      pid_t getFgPID(){return this->fg_pid;};
-      void setFgPID(pid_t pid){this->fg_pid = pid;}
+      pid_t  getFgPID(){return this->fg_pid;}
+      void setFgPID(pid_t  pid){this->fg_pid = pid;}
       Command * getFgCmd(){return this->fg_cmd;}
       void setFgCmd(Command* cmd){this->fg_cmd = cmd;}
       void ChangePrompt(const string new_prompt);

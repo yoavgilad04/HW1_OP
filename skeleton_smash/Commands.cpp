@@ -183,7 +183,7 @@ void Chprompt::execute() { //TODO: ADD ERRORS
     int num_args = _parseCommandLine(this->getCommandLine(), args);
     if (num_args == 1) {
         shell.ChangePrompt("");
-    } else if (num_args == 2) {
+    } else {
         shell.ChangePrompt(args[1]);
     }
 }
@@ -262,16 +262,15 @@ void ChangeDirCommand::execute() {
 void QuitCommand::execute() {
     const char * cmd_c = this->getCommandLine();
     string cmd_s = _trim(string(cmd_c));
-
-    if(cmd_s.find("kill") != std::string::npos){
-        cout<<"smash: sending SIGKILL signal to " << jobs->getCurrJobsNum()<< " jobs:"<<endl;
+    char * args[COMMAND_ARGS_MAX_LENGTH];
+    _parseCommandLine(this->getCommandLine(), args);
+    if(string(args[1]).compare("kill")==0){
+        cout<<"smash: sending SIGKILL signal to " << jobs->getCurrJobsNum()<< " jobs: "<<endl;
         jobs->printJobsList();
-        jobs->killAllJobs();
     }
-    else{
-        jobs->killAllJobs();
-    }
-    return;
+    jobs->killAllJobs();
+    delete this;
+    exit(0);
 }
 
 /***ForegroundCommand implementation
@@ -378,7 +377,7 @@ void BackgroundCommand::execute() {
     }
 
     pid_t pid = job_to_bg->getJobPid();
-    cout << job_to_bg->getCmd()->getCommandLine() << ' : ' << pid << endl;
+    cout << job_to_bg->getCmd()->getCommandLine() << " : " << pid << endl;
 
     //resume in background
     if (kill(pid, SIGCONT) == SYS_FAIL) {
@@ -453,7 +452,7 @@ void KillCommand::execute() {
             break;
             //todo: add more cases and think how to act for each sig
     }
-
+    cout<< "signal number "<<signal_num<<" was sent to pid "<<job->getJobPid()<<endl;
 
 }
 
@@ -540,6 +539,7 @@ void JobsList::addJob(Command *cmd, pid_t job_pid, bool isStopped) {
 
 /***printJobsList- this function prints all the jobs that currently in JobList */
 void JobsList::printJobsList() {
+    if(this->max_job_id==0) return;
     removeFinishedJobs();
 
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); ++it) {
@@ -562,13 +562,10 @@ void JobsList::printJobsList() {
 
 /***killAllJobs- this function kills all the jobs that currently in JobList */
 void JobsList::killAllJobs() {
-    removeFinishedJobs();
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); ++it) {
-        cout << "smash: process " << (*it)->getJobPid() << " was killed" << endl;
+        cout << (*it)->getJobPid() << ": " << (*it)->getCmd()->getCommand() << endl;
+        //cout << "smash: process " << (*it)->getJobPid() << " was killed" << endl;
         kill((*it)->getJobPid(), SIGKILL);
-        delete (*it)->getCmd(); //check if OK
-        jobs_vect.erase(it);
-        it--;
     }
 }
 
@@ -709,6 +706,8 @@ void ExternalCommand::execute() {
             this->err.PrintSysFailError("fork");
             return;
         }
+        shell.setFgPID(child_pid);
+        shell.setFgCmd(this);
         if (pid == 0) {
             if (setpgrp() == SYS_FAIL) {
                 this->err.PrintSysFailError("setpgrp");
@@ -721,45 +720,152 @@ void ExternalCommand::execute() {
                 child_pid = pid;
                 if (is_background) {
                     shell.GetJobList()->addJob(this, child_pid, false);
-                } else {
+                }
+                else{
                     if (waitpid(child_pid, nullptr, WUNTRACED) == SYS_FAIL) {
                         this->err.PrintSysFailError("waitpid");
                         return;
                     }
+                    shell.setFgPID(-1);
+                    shell.setFgCmd(nullptr);
                 }
             }
+        }
 
-        } else {
-            pid_t pid = fork();
-            if (pid == SYS_FAIL) {
-                perror("fork");
+    } else {
+        pid_t pid = fork();
+
+        if (pid == SYS_FAIL) {
+            perror("fork");
+            return;
+        }
+        shell.setFgPID(pid);
+        shell.setFgCmd(this);
+        if (pid == 0) { //son
+            if (setpgrp() == SYS_FAIL) {
+                this->err.PrintSysFailError("setpgrp");
                 return;
-            } else if (pid == 0) { //son
-                if (setpgrp() == SYS_FAIL) {
-                    this->err.PrintSysFailError("setpgrp");
-                    return;
+            }
+            if (execvp(args[0], args) == SYS_FAIL) {
+                this->err.PrintSysFailError("execvp");
+                return;
+            }
+        } else { //father
+            if (is_background) {
+                shell.GetJobList()->addJob(this, pid, false);
+            } else {
+
+                if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
+                    this->err.PrintSysFailError("waitpid");
                 }
-                if (execvp(args[0], args) == SYS_FAIL) {
-                    this->err.PrintSysFailError("execvp");
-                    return;
-                }
-            } else { //father
-                if (is_background) {
-                    shell.GetJobList()->addJob(this, pid, false);
-                } else {
-                    if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
-                        this->err.PrintSysFailError("waitpid");
-                    }
-                }
+                shell.setFgCmd(nullptr);
+                shell.setFgPID(-1);
             }
         }
     }
 }
 
 
+void PipeCommand::closePipe(int *fd) {
+    if (close(fd[0]) == SYS_FAIL || close(fd[1]) == SYS_FAIL) {
+        this->err.PrintSysFailError("close");
+    }
+}
+
 /***--------------Pipe Command implementation--------------***/
 
+PipeCommand::PipeCommand(const char* cmd_line): Command(cmd_line){
+    //is_append
+    string cmd_s = _trim(string(cmd_line));
+    if (cmd_s.find("|&") != std::string::npos) {
+        this->is_error = true;
+    }
 
+    string delimiter;
+    if (is_error) delimiter = "|&";
+    else delimiter = '|';
+
+    size_t pos = 0;
+    std::string cmd1 = cmd_s.substr(0, cmd_s.find(delimiter));
+    cmd_s.erase(0, pos + cmd1.length() + delimiter.length());
+    std::string cmd2 = cmd_s.substr(0, cmd_s.find(delimiter));
+    cmd2 = _trim(cmd2);
+
+    cmd1 = _trim(cmd1);
+    strcpy(command1, cmd1.c_str());
+    strcpy(command2, cmd2.c_str());
+
+    //TODO: add function to extract cmd1,cmd2
+
+}
+
+void PipeCommand::execute() {
+    SmallShell& shell = SmallShell::getInstance();
+    int fd[2];
+    pipe(fd);
+    pid_t c1_pid = fork();
+    if (c1_pid == SYS_FAIL){
+        this->err.PrintSysFailError("fork");
+        this->closePipe(fd);
+        return;
+    }
+    if (c1_pid == 0){
+        if (setpgrp() == SYS_FAIL) {
+            this->err.PrintSysFailError("setpgrp");
+            this->closePipe(fd);
+            return;
+        }
+        int d_res;
+        if (is_error)
+           d_res = dup2(fd[1], 2);
+        else
+            d_res = dup2(fd[1], 1);
+        if (d_res == SYS_FAIL){
+            this->err.PrintSysFailError("dup2");
+            this->closePipe(fd);
+            return;
+        }
+        this->closePipe(fd);
+        shell.executeCommand(this->command1);
+        exit(0);
+    }
+    pid_t c2_pid = fork();
+    if (c2_pid == SYS_FAIL){
+        this->err.PrintSysFailError("fork");
+        this->closePipe(fd);
+        return;
+    }
+
+    if (c2_pid == 0){
+        if (setpgrp() == SYS_FAIL) {
+            this->err.PrintSysFailError("setpgrp");
+            this->closePipe(fd);
+            return;
+        }
+        int d_res = dup2(fd[0], 0);
+        if (d_res == SYS_FAIL){
+            this->err.PrintSysFailError("dup2");
+            this->closePipe(fd);
+            return;
+        }
+        this->closePipe(fd);
+        shell.executeCommand(this->command2);
+        exit(0);
+    }
+    this->closePipe(fd);
+    if(waitpid(c1_pid, nullptr, WUNTRACED)==SYS_FAIL){
+        this->err.PrintSysFailError("waitpid");
+        return;
+    }
+    if(waitpid(c1_pid, nullptr, WUNTRACED)==SYS_FAIL){
+        this->err.PrintSysFailError("waitpid");
+        return;
+    }
+    if(waitpid(c2_pid, nullptr, WUNTRACED)==SYS_FAIL){
+        this->err.PrintSysFailError("waitpid");
+        return;
+    }
+}
 
 /***--------------Redirection Command implementation--------------***/
 RedirectionCommand::RedirectionCommand(const char* cmd_line): Command(cmd_line) {
@@ -856,7 +962,7 @@ void SmallShell::ChangePrompt(string new_prompt) {
 SmallShell::SmallShell() {
     this->jobs_list = new JobsList();
     this->p_last_dir = nullptr;
-    this->fg_pid = -1 ;
+    this->fg_pid = -1;
     this->fg_cmd = nullptr;
 }
 
@@ -874,8 +980,12 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     if (firstWord.back() == '&') {
         firstWord.pop_back();
     }
-    if(cmd_s.find_first_of(">>") != std::string::npos || cmd_s.find_first_of('>') != std::string::npos){
+    if(cmd_s.find(">>") != std::string::npos || cmd_s.find('>') != std::string::npos){
         return new RedirectionCommand(cmd_line);
+    }
+
+    if(cmd_s.find("|&") != std::string::npos || cmd_s.find('|') != std::string::npos){
+        return new PipeCommand(cmd_line);
     }
 
     if (firstWord.compare("showpid") == 0) {
