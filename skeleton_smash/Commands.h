@@ -3,6 +3,9 @@
 
 #include <vector>
 #include <stdio.h>
+#include <climits>
+#include <string.h>
+
 #define COMMAND_ARGS_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
 #define MAX_SIG 31
@@ -49,8 +52,10 @@ protected:
     SmashErrors err;
     char** setUpArgs(char*** args, const char * cmd_line, string * cmd, int *args_num = nullptr);
  public:
-  Command(const char* cmd_line):cmd_line(cmd_line){};
-  virtual ~Command(){};
+  Command(const char* cmd_line){
+      this->cmd_line = strdup(cmd_line);
+  }
+  virtual ~Command(){ delete(this->cmd_line);};
   virtual void execute() = 0;
   //virtual void prepare();
   //virtual void cleanup();
@@ -82,13 +87,19 @@ class PipeCommand : public Command {
 };
 
 class RedirectionCommand : public Command {
- // TODO: Add your data members
+    char command[COMMAND_ARGS_MAX_LENGTH];
+    char filename[PATH_MAX];
+ bool is_append = false;
+ int fd;
+ bool is_redir;
+ int copy_stdout;
+
  public:
-  explicit RedirectionCommand(const char* cmd_line): Command(cmd_line){};
-  virtual ~RedirectionCommand() {}
+  explicit RedirectionCommand(const char* cmd_line);
+  virtual ~RedirectionCommand() =default;
   void execute() override;
-  //void prepare() override;
-  //void cleanup() override;
+  void prepare() ;
+  void cleanup() ;
 };
 
 class Chprompt : public BuiltInCommand {
@@ -122,9 +133,9 @@ class ShowPidCommand : public BuiltInCommand {
 
 class JobsList;
 class QuitCommand : public BuiltInCommand {
-// TODO: Add your data members
+    JobsList * jobs;
 public:
-  QuitCommand(const char* cmd_line, JobsList* jobs);
+  QuitCommand(const char* cmd_line, JobsList* jobs) : BuiltInCommand(cmd_line), jobs(jobs){};
   virtual ~QuitCommand() {}
   void execute() override;
 };
@@ -138,6 +149,7 @@ class JobsList {
       time_t enter_time;
       bool is_stopped;
       Command * cmd;
+
   public:
 
       JobEntry(int job_id, pid_t job_pid, bool is_stopped, Command * cmd):
@@ -154,6 +166,8 @@ class JobsList {
       void resume(){this->is_stopped=false;}
       void stop(){this->is_stopped=true;}
   };
+protected:
+    SmashErrors err;
  int max_job_id = 0; //counts the num of jobs. Need for naming the next job
  std::vector<JobEntry *> jobs_vect;
  public:
@@ -169,6 +183,7 @@ class JobsList {
   JobEntry *getLastStoppedJob(int *jobId);
   /*** our own methods ***/
   time_t getEntryTime(int jobId);
+  int getCurrJobsNum(){return jobs_vect.size();}
 };
 
 class JobsCommand : public BuiltInCommand {
