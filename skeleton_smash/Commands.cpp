@@ -234,6 +234,17 @@ void ChangeDirCommand::execute() {
 }
 
 void QuitCommand::execute() {
+    const char * cmd_c = this->getCommandLine();
+    string cmd_s = _trim(string(cmd_c));
+
+    if(cmd_s.find("kill") != std::string::npos){
+        cout<<"smash: sending SIGKILL signal to " << jobs->getCurrJobsNum()<< " jobs:"<<endl;
+        jobs->printJobsList();
+        jobs->killAllJobs();
+    }
+    else{
+        jobs->killAllJobs();
+    }
     return;
 }
 
@@ -486,8 +497,9 @@ void JobsList::printJobsList() {
 
 /***killAllJobs- this function kills all the jobs that currently in JobList */
 void JobsList::killAllJobs() {
+    removeFinishedJobs();
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); ++it) {
-        cout << "smash: process " << (*it)->getJobPid() << "was killed" << endl;
+        cout << "smash: process " << (*it)->getJobPid() << " was killed" << endl;
         kill((*it)->getJobPid(), SIGKILL);
         delete (*it)->getCmd(); //check if OK
         jobs_vect.erase(it);

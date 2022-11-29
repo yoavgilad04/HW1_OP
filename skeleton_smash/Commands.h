@@ -178,6 +178,7 @@ protected:
   JobEntry *getLastStoppedJob(int *jobId);
   /*** our own methods ***/
   time_t getEntryTime(int jobId);
+  int getCurrJobsNum(){return jobs_vect.size();}
 };
 
 class JobsCommand : public BuiltInCommand {
