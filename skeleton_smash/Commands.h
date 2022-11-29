@@ -177,7 +177,7 @@ protected:
   ~JobsList()=default;
   void addJob(Command* cmd, pid_t job_pid, bool isStopped = false);
   void printJobsList();
-  void killAllJobs();
+  void killAllJobs(bool is_loud);
   void removeFinishedJobs();
   JobEntry * getJobById(int jobId);
   void removeJobById(int jobId);

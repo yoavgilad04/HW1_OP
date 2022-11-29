@@ -64,7 +64,7 @@ void free_args(char **args, int args_size) {
     }
 }
 
-char** Command::setUpArgs(char ***args, const char *cmd_line, string * cmd, int *args_num) {
+char **Command::setUpArgs(char ***args, const char *cmd_line, string *cmd, int *args_num) {
     *cmd = this->getCommand();
     if (args_num == nullptr)
         return nullptr;
@@ -123,13 +123,12 @@ bool is_valid_signal(string signal) {
 }
 
 //todo: entering all utility functions to classes
-bool is_valid_core(string core_str){
-    if(!is_an_integer(core_str))
+bool is_valid_core(string core_str) {
+    if (!is_an_integer(core_str))
         return false;
 
     int number_of_cores = sysconf(_SC_NPROCESSORS_CONF);
-    if (number_of_cores == SYS_FAIL)
-    {
+    if (number_of_cores == SYS_FAIL) {
         perror(" ");
     }
     int core_num = stoi(core_str);
@@ -220,7 +219,7 @@ void ChangeDirCommand::execute() {
         return;
     }
     char *p_current = new char[PATH_MAX];
-    char * makaf = "-";
+    char *makaf = "-";
 
     if (getcwd(p_current, (size_t) PATH_MAX) == NULL) {
         this->err.PrintSysFailError("getcwd");
@@ -260,15 +259,18 @@ void ChangeDirCommand::execute() {
 }
 
 void QuitCommand::execute() {
-    const char * cmd_c = this->getCommandLine();
+    const char *cmd_c = this->getCommandLine();
     string cmd_s = _trim(string(cmd_c));
-    char * args[COMMAND_ARGS_MAX_LENGTH];
-    _parseCommandLine(this->getCommandLine(), args);
-    if(string(args[1]).compare("kill")==0){
-        cout<<"smash: sending SIGKILL signal to " << jobs->getCurrJobsNum()<< " jobs: "<<endl;
-        jobs->printJobsList();
+    char *args[COMMAND_ARGS_MAX_LENGTH];
+    int num = _parseCommandLine(this->getCommandLine(), args);
+    bool is_loud = false;
+    if (num > 1) {
+        if (strcmp((args[1]), "kill") == 0) {
+            is_loud = true;
+            cout << "smash: sending SIGKILL signal to " << jobs->getCurrJobsNum() << " jobs:" << endl;
+        }
     }
-    jobs->killAllJobs();
+    jobs->killAllJobs(is_loud);
     delete this;
     exit(0);
 }
@@ -452,7 +454,7 @@ void KillCommand::execute() {
             break;
             //todo: add more cases and think how to act for each sig
     }
-    cout<< "signal number "<<signal_num<<" was sent to pid "<<job->getJobPid()<<endl;
+    cout << "signal number " << signal_num << " was sent to pid " << job->getJobPid() << endl;
 
 }
 
@@ -513,7 +515,7 @@ void SetCoreCommand::execute() {
     CPU_ZERO(&my_set);
     CPU_SET(core_num, &my_set);
     pid_t job_pid = job->getJobPid();
-    if(sched_setaffinity(job_pid, sizeof(cpu_set_t), &my_set) == SYS_FAIL){
+    if (sched_setaffinity(job_pid, sizeof(cpu_set_t), &my_set) == SYS_FAIL) {
         this->err.PrintSysFailError("sched_setaffinity");
         free_args(args, num_args);
         return;
@@ -531,6 +533,7 @@ void SetCoreCommand::execute() {
  */
 void JobsList::addJob(Command *cmd, pid_t job_pid, bool isStopped) {
     removeFinishedJobs();
+
     this->max_job_id++;
     JobEntry *new_job = new JobEntry(this->max_job_id, job_pid, isStopped, cmd);
     this->jobs_vect.push_back(new_job);
@@ -539,7 +542,7 @@ void JobsList::addJob(Command *cmd, pid_t job_pid, bool isStopped) {
 
 /***printJobsList- this function prints all the jobs that currently in JobList */
 void JobsList::printJobsList() {
-    if(this->max_job_id==0) return;
+    if (this->max_job_id == 0) return;
     removeFinishedJobs();
 
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); ++it) {
@@ -551,19 +554,21 @@ void JobsList::printJobsList() {
 
         time_t diff = difftime(curr, (*it)->getEnterTime());
         if ((*it)->isStopped()) {
-            cout <<'['<< (*it)->getJobId() <<"] " << (*it)->getCmd()->getCommandLine() << " : " << (*it)->getJobPid()
+            cout << '[' << (*it)->getJobId() << "] " << (*it)->getCmd()->getCommandLine() << " : " << (*it)->getJobPid()
                  << ' ' << diff << " secs" << "(stopped)" << endl;
         } else {
-            cout <<'['<< (*it)->getJobId() <<"] " << (*it)->getCmd()->getCommandLine() << " : " << (*it)->getJobPid()
+            cout << '[' << (*it)->getJobId() << "] " << (*it)->getCmd()->getCommandLine() << " : " << (*it)->getJobPid()
                  << ' ' << diff << " secs" << endl;
         }
     }
 }
 
 /***killAllJobs- this function kills all the jobs that currently in JobList */
-void JobsList::killAllJobs() {
+void JobsList::killAllJobs(bool is_loud) {
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); ++it) {
-        cout << (*it)->getJobPid() << ": " << (*it)->getCmd()->getCommand() << endl;
+        if (is_loud) {
+            cout << (*it)->getJobPid() << ": " << (*it)->getCmd()->getCommandLine() << endl;
+        }
         //cout << "smash: process " << (*it)->getJobPid() << " was killed" << endl;
         kill((*it)->getJobPid(), SIGKILL);
     }
@@ -585,14 +590,11 @@ void JobsList::removeFinishedJobs() {
         }
     }
     //change max_job_id
-    if (job_p == max_job_id) {
-        int max_j = 0;
-        for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
-            if (max_j < (*it)->getJobId()) {
-                max_j = (*it)->getJobId();
-            }
+    max_job_id = 0;
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+        if (max_job_id < (*it)->getJobId()) {
+            max_job_id = (*it)->getJobId();
         }
-        max_job_id = max_j;
     }
 }
 
@@ -720,8 +722,7 @@ void ExternalCommand::execute() {
                 child_pid = pid;
                 if (is_background) {
                     shell.GetJobList()->addJob(this, child_pid, false);
-                }
-                else{
+                } else {
                     if (waitpid(child_pid, nullptr, WUNTRACED) == SYS_FAIL) {
                         this->err.PrintSysFailError("waitpid");
                         return;
@@ -774,7 +775,7 @@ void PipeCommand::closePipe(int *fd) {
 
 /***--------------Pipe Command implementation--------------***/
 
-PipeCommand::PipeCommand(const char* cmd_line): Command(cmd_line){
+PipeCommand::PipeCommand(const char *cmd_line) : Command(cmd_line) {
     //is_append
     string cmd_s = _trim(string(cmd_line));
     if (cmd_s.find("|&") != std::string::npos) {
@@ -800,16 +801,16 @@ PipeCommand::PipeCommand(const char* cmd_line): Command(cmd_line){
 }
 
 void PipeCommand::execute() {
-    SmallShell& shell = SmallShell::getInstance();
+    SmallShell &shell = SmallShell::getInstance();
     int fd[2];
     pipe(fd);
     pid_t c1_pid = fork();
-    if (c1_pid == SYS_FAIL){
+    if (c1_pid == SYS_FAIL) {
         this->err.PrintSysFailError("fork");
         this->closePipe(fd);
         return;
     }
-    if (c1_pid == 0){
+    if (c1_pid == 0) {
         if (setpgrp() == SYS_FAIL) {
             this->err.PrintSysFailError("setpgrp");
             this->closePipe(fd);
@@ -817,10 +818,10 @@ void PipeCommand::execute() {
         }
         int d_res;
         if (is_error)
-           d_res = dup2(fd[1], 2);
+            d_res = dup2(fd[1], 2);
         else
             d_res = dup2(fd[1], 1);
-        if (d_res == SYS_FAIL){
+        if (d_res == SYS_FAIL) {
             this->err.PrintSysFailError("dup2");
             this->closePipe(fd);
             return;
@@ -830,20 +831,20 @@ void PipeCommand::execute() {
         exit(0);
     }
     pid_t c2_pid = fork();
-    if (c2_pid == SYS_FAIL){
+    if (c2_pid == SYS_FAIL) {
         this->err.PrintSysFailError("fork");
         this->closePipe(fd);
         return;
     }
 
-    if (c2_pid == 0){
+    if (c2_pid == 0) {
         if (setpgrp() == SYS_FAIL) {
             this->err.PrintSysFailError("setpgrp");
             this->closePipe(fd);
             return;
         }
         int d_res = dup2(fd[0], 0);
-        if (d_res == SYS_FAIL){
+        if (d_res == SYS_FAIL) {
             this->err.PrintSysFailError("dup2");
             this->closePipe(fd);
             return;
@@ -853,22 +854,22 @@ void PipeCommand::execute() {
         exit(0);
     }
     this->closePipe(fd);
-    if(waitpid(c1_pid, nullptr, WUNTRACED)==SYS_FAIL){
+    if (waitpid(c1_pid, nullptr, WUNTRACED) == SYS_FAIL) {
         this->err.PrintSysFailError("waitpid");
         return;
     }
-    if(waitpid(c1_pid, nullptr, WUNTRACED)==SYS_FAIL){
+    if (waitpid(c1_pid, nullptr, WUNTRACED) == SYS_FAIL) {
         this->err.PrintSysFailError("waitpid");
         return;
     }
-    if(waitpid(c2_pid, nullptr, WUNTRACED)==SYS_FAIL){
+    if (waitpid(c2_pid, nullptr, WUNTRACED) == SYS_FAIL) {
         this->err.PrintSysFailError("waitpid");
         return;
     }
 }
 
 /***--------------Redirection Command implementation--------------***/
-RedirectionCommand::RedirectionCommand(const char* cmd_line): Command(cmd_line) {
+RedirectionCommand::RedirectionCommand(const char *cmd_line) : Command(cmd_line) {
 
 
     //is_append
@@ -910,39 +911,37 @@ void RedirectionCommand::prepare() {
         return;
     }
 
-    if (is_append){
-        this->fd = open(filename, O_APPEND | O_WRONLY | O_CREAT , 0666);
-    }
-    else {
-        this->fd = open(filename, O_WRONLY | O_CREAT |O_TRUNC  , 0666);
+    if (is_append) {
+        this->fd = open(filename, O_APPEND | O_WRONLY | O_CREAT, 0666);
+    } else {
+        this->fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     }
 
-    if(fd<0) {
+    if (fd < 0) {
         this->err.PrintSysFailError("open");
         return;
-    }
-    else is_redir=true;
+    } else is_redir = true;
 
 }
 
 
 void RedirectionCommand::execute() {
-    SmallShell & shell = SmallShell::getInstance();
+    SmallShell &shell = SmallShell::getInstance();
     shell.executeCommand(this->command);
     cleanup();
 }
 
 void RedirectionCommand::cleanup() {
-    if (is_redir){
-        if (close(fd)==SYS_FAIL){
+    if (is_redir) {
+        if (close(fd) == SYS_FAIL) {
             this->err.PrintSysFailError("close");
             return;
         }
-        if(dup2(copy_stdout,1) ==SYS_FAIL){
+        if (dup2(copy_stdout, 1) == SYS_FAIL) {
             this->err.PrintSysFailError("dup2");
         }
     }
-    if (close(copy_stdout)==SYS_FAIL){
+    if (close(copy_stdout) == SYS_FAIL) {
         this->err.PrintSysFailError("close");
         return;
     }
@@ -980,11 +979,11 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     if (firstWord.back() == '&') {
         firstWord.pop_back();
     }
-    if(cmd_s.find(">>") != std::string::npos || cmd_s.find('>') != std::string::npos){
+    if (cmd_s.find(">>") != std::string::npos || cmd_s.find('>') != std::string::npos) {
         return new RedirectionCommand(cmd_line);
     }
 
-    if(cmd_s.find("|&") != std::string::npos || cmd_s.find('|') != std::string::npos){
+    if (cmd_s.find("|&") != std::string::npos || cmd_s.find('|') != std::string::npos) {
         return new PipeCommand(cmd_line);
     }
 
