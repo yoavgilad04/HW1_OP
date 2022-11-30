@@ -85,8 +85,16 @@ char **Command::setUpArgs(char ***args, const char *cmd_line, string *cmd, int *
  * @return bool
  */
 bool is_an_integer(string str) {
+    char minus = '-';
+    int counter=0;
     for (char const &ch : str) {
-        if (std::isdigit(ch) == 0)
+        char current_char = ch;
+        if (std::isdigit(current_char) == 0 && current_char != minus)
+            return false;
+        if (current_char == minus){
+            counter++;
+        }
+        if(counter > 1)
             return false;
     }
     if (str.length() == 0)
@@ -227,7 +235,7 @@ void ChangeDirCommand::execute() {
     }
     if (strcmp(args[1], makaf) == 0) // second argument is -
     {
-        if (p_last_dir == nullptr) {
+        if (*p_last_dir == NULL) {
             this->err.PrintOLDPWDFail(cmd);
             free_args(args, num_args);
             return;
@@ -302,6 +310,7 @@ void ForegroundCommand::execute() {
             free_args(args, num_args);
             return;
         }
+
         job_id_num = stoi(job_id); // stio convert a string to number
         job_to_fg = this->jobs->getJobById(job_id_num);
         if (job_to_fg == nullptr) {
@@ -409,26 +418,29 @@ void KillCommand::execute() {
         return;
     }
     string signal_str = args[1];
-    if (is_valid_signal(signal_str)) //check if the command second args startswith -
+    if (!is_valid_signal(signal_str)) //check if the command second args startswith -
     {
         this->err.PrintInvalidArgs(cmd);
         free_args(args, num_args);
         return;
     }
-    signal_num = stoi(signal_str);
+    string signal_without_makaf = signal_str.substr(1, signal_str.length());
+    signal_num = stoi(signal_without_makaf);
     string job_id = args[2];
     if (!is_an_integer(job_id)) {
         this->err.PrintInvalidArgs(cmd); //todo: if job id isn't an integer should it be jobdoesntexits or syntax err
         free_args(args, num_args);
         return;
     }
-    job_id_num = stoi(job_id); // stio convert a string to number
+    job_id_num = stoi(job_id); // stoi convert a string to number
     job = jobs->getJobById(job_id_num);
     if (job == nullptr) {
         this->err.PrintJobIDDoesntExits(cmd, job_id_num);
         free_args(args, num_args);
         return;
     }
+    cout << "signal number " << signal_num << " was sent to pid " << job->getJobPid() << endl;
+
     // in here we found that the signum num the job id are valid
     if (kill(job->getJobPid(), signal_num) == SYS_FAIL) {
         this->err.PrintSysFailError("kill");
@@ -458,7 +470,6 @@ void KillCommand::execute() {
             break;
             //todo: add more cases and think how to act for each sig
     }
-    cout << "signal number " << signal_num << " was sent to pid " << job->getJobPid() << endl;
 
 }
 
@@ -862,10 +873,6 @@ void PipeCommand::execute() {
         this->err.PrintSysFailError("waitpid");
         return;
     }
-    if (waitpid(c1_pid, nullptr, WUNTRACED) == SYS_FAIL) {
-        this->err.PrintSysFailError("waitpid");
-        return;
-    }
     if (waitpid(c2_pid, nullptr, WUNTRACED) == SYS_FAIL) {
         this->err.PrintSysFailError("waitpid");
         return;
@@ -1008,7 +1015,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     } else if (firstWord.compare("quit") == 0) {
         return new QuitCommand(cmd_line, jobs_list);
     } else if (firstWord.compare("kill") == 0) {
-        //return new KillCommand(cmd_line, jobs_list);
+        return new KillCommand(cmd_line, jobs_list);
     } else if (firstWord.compare("fare") == 0) {
         //return new FareCommand(cmd_line);
     } else if (firstWord.compare("setcore") == 0) {

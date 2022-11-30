@@ -16,32 +16,32 @@ class SmashErrors
     string pre_error = "smash error: ";
 public:
     void PrintJobIDDoesntExits(string cmd,int job_id )
-    {cerr <<this->pre_error<<cmd<<": "<<"job id "<<job_id<<" does not exist";}
+    {cerr <<this->pre_error<<cmd<<": "<<"job-id "<<job_id<<" does not exist"<<endl;}
 
     void PrintJobsListEmpty(string cmd)
-    {cerr <<this->pre_error<<cmd<<": jobs list is empty";}
+    {cerr <<this->pre_error<<cmd<<": jobs list is empty"<<endl;}
 
     void PrintInvalidArgs(string cmd)
-    {cerr <<this->pre_error<<cmd<<": invalid arguments";}
+    {cerr <<this->pre_error<<cmd<<": invalid arguments"<<endl;}
 
     void PrintInvalidCore(string cmd)
-    {cerr <<this->pre_error<<cmd<<": invalid core number";}
+    {cerr <<this->pre_error<<cmd<<": invalid core number"<<endl;}
 
     void PrintNoStoppedJobs(string cmd)
-    {cerr <<this->pre_error<<cmd<<": there is no stopped jobs to resume";}
+    {cerr <<this->pre_error<<cmd<<": there is no stopped jobs to resume"<<endl;}
 
     void PrintJobAlreadyRunningInBG(string cmd, int job_id)
-    {cerr <<this->pre_error<<cmd<<": job id "<<job_id<<" is already running in the background";}
+    {cerr <<this->pre_error<<cmd<<": job id "<<job_id<<" is already running in the background"<<endl;}
 
     void PrintTooManyArgs(string cmd)
-    {cerr <<this->pre_error<<cmd<<": too many argumnets";}
+    {cerr <<this->pre_error<<cmd<<": too many arguments"<<endl;}
 
     void PrintOLDPWDFail(string cmd)
-    {cerr <<this->pre_error<<cmd<<": OLDPWD not set";}
+    {cerr <<this->pre_error<<cmd<<": OLDPWD not set"<<endl;}
 
     void PrintSysFailError(string sys_call_name)
     {
-        string msg = this->pre_error + sys_call_name + " failed ";
+        string msg = this->pre_error + sys_call_name + " failed";
         perror(msg.c_str());
     } //c_str convert string to char
 };
