@@ -918,10 +918,10 @@ void RedirectionCommand::execute() {
         return;
     }
     if (pid == 0) {
-        /*if (setpgrp() == SYS_FAIL) {
+        if (setpgrp() == SYS_FAIL) {
             this->err.PrintSysFailError("setpgrp");
             return;
-        }*/
+        }
         close(1);
         if (is_append) {
             this->fd = open(filename, O_APPEND | O_WRONLY | O_CREAT, 0655);
@@ -943,7 +943,6 @@ void RedirectionCommand::execute() {
     else{
         waitpid(pid, nullptr, 0);
     }
-
 }
 
 void RedirectionCommand::cleanup() {
