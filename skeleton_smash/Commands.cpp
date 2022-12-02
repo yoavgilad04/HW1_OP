@@ -880,8 +880,6 @@ void PipeCommand::execute() {
 
 /***--------------Redirection Command implementation--------------***/
 RedirectionCommand::RedirectionCommand(const char *cmd_line) : Command(cmd_line) {
-
-
     //is_append
     string cmd_s = _trim(string(cmd_line));
     if (cmd_s.find(">>") != std::string::npos) {
@@ -904,60 +902,52 @@ RedirectionCommand::RedirectionCommand(const char *cmd_line) : Command(cmd_line)
     string c = _trim(cmd);
     strcpy(command, c.c_str());
     strcpy(filename, file_name.c_str());
-    prepare();
 
 }
 
 
-void RedirectionCommand::prepare() {
-
-    this->copy_stdout = dup(1);
-    if (copy_stdout == SYS_FAIL) {
-        this->err.PrintSysFailError("dup");
-        return;
-    }
-    if (close(1) == SYS_FAIL) {
-        this->err.PrintSysFailError("close");
-        return;
-    }
-
-    if (is_append) {
-        this->fd = open(filename, O_APPEND | O_WRONLY | O_CREAT, 0655);
-    } else {
-        this->fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0655);
-    }
-
-    if (fd < 0) {
-        this->is_redir=false;
-        this->err.PrintSysFailError("open");
-        return;
-    } else is_redir = true;
-}
+void RedirectionCommand::prepare() {}
 
 
 void RedirectionCommand::execute() {
-    if (is_redir){
-        SmallShell &shell = SmallShell::getInstance();
-        shell.executeCommand(this->command);
+    SmallShell& smash = SmallShell::getInstance();
+
+    pid_t pid = fork();
+    if (pid == SYS_FAIL) {
+        this->err.PrintSysFailError("fork");
+        return;
     }
-    cleanup();
+    if (pid == 0) {
+        /*if (setpgrp() == SYS_FAIL) {
+            this->err.PrintSysFailError("setpgrp");
+            return;
+        }*/
+        close(1);
+        if (is_append) {
+            this->fd = open(filename, O_APPEND | O_WRONLY | O_CREAT, 0655);
+        } else {
+            this->fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0655);
+        }
+
+        if (fd == SYS_FAIL) {
+            this->is_redir=false;
+            this->err.PrintSysFailError("open");
+        }
+        else is_redir = true;
+
+        if(is_redir){
+            smash.executeCommand(this->command);
+        }
+        exit(0);
+    }
+    else{
+        waitpid(pid, nullptr, 0);
+    }
+
 }
 
 void RedirectionCommand::cleanup() {
-    if (is_redir) {
-        if (close(fd) == SYS_FAIL) {
-            this->err.PrintSysFailError("close");
-            return;
-        }
-        if (dup2(copy_stdout, 1) == SYS_FAIL) {
-            this->err.PrintSysFailError("dup2");
-        }
-    }
 
-    if (close(copy_stdout) == SYS_FAIL) {
-        this->err.PrintSysFailError("close");
-        return;
-    }
 }
 
 /***--------------SmallShell implementation--------------***/
@@ -1036,5 +1026,4 @@ void SmallShell::executeCommand(const char *cmd_line) {
         return;
     }
     cmd->execute();
-    //delete cmd;
 }
