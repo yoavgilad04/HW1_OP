@@ -274,11 +274,11 @@ void QuitCommand::execute() {
     bool is_loud = false;
     if (num > 1) {
         if (strcmp((args[1]), "kill") == 0) {
-            is_loud = true;
             cout << "smash: sending SIGKILL signal to " << jobs->getCurrJobsNum() << " jobs:" << endl;
+            jobs->killAllJobs();
         }
     }
-    jobs->killAllJobs(is_loud);
+    //jobs->killAllJobs(is_loud);
     delete this;
     exit(0);
 }
@@ -569,7 +569,7 @@ void JobsList::printJobsList() {
         time_t diff = difftime(curr, (*it)->getEnterTime());
         if ((*it)->isStopped()) {
             cout << '[' << (*it)->getJobId() << "] " << (*it)->getCmd()->getCommandLine() << " : " << (*it)->getJobPid()
-                 << ' ' << diff << " secs" << "(stopped)" << endl;
+                 << ' ' << diff << " secs " << "(stopped)" << endl;
         } else {
             cout << '[' << (*it)->getJobId() << "] " << (*it)->getCmd()->getCommandLine() << " : " << (*it)->getJobPid()
                  << ' ' << diff << " secs" << endl;
@@ -578,11 +578,10 @@ void JobsList::printJobsList() {
 }
 
 /***killAllJobs- this function kills all the jobs that currently in JobList */
-void JobsList::killAllJobs(bool is_loud) {
+void JobsList::killAllJobs() {
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); ++it) {
-        if (is_loud) {
-            cout << (*it)->getJobPid() << ": " << (*it)->getCmd()->getCommandLine() << endl;
-        }
+        cout << (*it)->getJobPid() << ": " << (*it)->getCmd()->getCommandLine() << endl;
+
         //cout << "smash: process " << (*it)->getJobPid() << " was killed" << endl;
         kill((*it)->getJobPid(), SIGKILL);
     }
@@ -923,22 +922,24 @@ void RedirectionCommand::prepare() {
     }
 
     if (is_append) {
-        this->fd = open(filename, O_APPEND | O_WRONLY | O_CREAT, 0666);
+        this->fd = open(filename, O_APPEND | O_WRONLY | O_CREAT, 0655);
     } else {
-        this->fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+        this->fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0655);
     }
 
     if (fd < 0) {
+        this->is_redir=false;
         this->err.PrintSysFailError("open");
         return;
     } else is_redir = true;
-
 }
 
 
 void RedirectionCommand::execute() {
-    SmallShell &shell = SmallShell::getInstance();
-    shell.executeCommand(this->command);
+    if (is_redir){
+        SmallShell &shell = SmallShell::getInstance();
+        shell.executeCommand(this->command);
+    }
     cleanup();
 }
 
@@ -952,6 +953,7 @@ void RedirectionCommand::cleanup() {
             this->err.PrintSysFailError("dup2");
         }
     }
+
     if (close(copy_stdout) == SYS_FAIL) {
         this->err.PrintSysFailError("close");
         return;

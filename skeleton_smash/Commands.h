@@ -31,7 +31,7 @@ public:
     {cerr <<this->pre_error<<cmd<<": there is no stopped jobs to resume"<<endl;}
 
     void PrintJobAlreadyRunningInBG(string cmd, int job_id)
-    {cerr <<this->pre_error<<cmd<<": job id "<<job_id<<" is already running in the background"<<endl;}
+    {cerr <<this->pre_error<<cmd<<": job-id "<<job_id<<" is already running in the background"<<endl;}
 
     void PrintTooManyArgs(string cmd)
     {cerr <<this->pre_error<<cmd<<": too many arguments"<<endl;}
@@ -177,7 +177,7 @@ protected:
   ~JobsList()=default;
   void addJob(Command* cmd, pid_t job_pid, bool isStopped = false);
   void printJobsList();
-  void killAllJobs(bool is_loud);
+  void killAllJobs();
   void removeFinishedJobs();
   JobEntry * getJobById(int jobId);
   void removeJobById(int jobId);
