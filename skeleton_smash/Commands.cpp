@@ -326,7 +326,7 @@ void ForegroundCommand::execute() {
     }
     SmallShell& shell = SmallShell::getInstance();
     pid_t pid = job_to_fg->getJobPid();
-    cout << job_to_fg->getCmd()->getCommandLine() << ": " << pid << endl; //success
+    cout << job_to_fg->getCmd()->getCommandLine() << " : " << pid << endl; //success
     if (kill(pid, SIGCONT) == SYS_FAIL) {
         this->err.PrintSysFailError("kill");
         free_args(args, num_args);
@@ -596,7 +596,7 @@ void JobsList::removeFinishedJobs() {
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
         job_p = (*it)->getJobPid();
         pid_t return_pid = waitpid(job_p, nullptr, WNOHANG);
-        if (return_pid == SYS_FAIL) return; //TODO: add error handler?
+        if (return_pid == SYS_FAIL) return;
         else if (return_pid == job_p) {
             jobs_vect.erase(it);
             it--;
