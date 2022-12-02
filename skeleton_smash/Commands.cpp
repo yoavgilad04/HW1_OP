@@ -326,7 +326,7 @@ void ForegroundCommand::execute() {
     }
     SmallShell& shell = SmallShell::getInstance();
     pid_t pid = job_to_fg->getJobPid();
-    cout << job_to_fg->getCmd()->getCommandLine() << ": " << pid << endl; //success
+    cout << job_to_fg->getCmd()->getCommandLine() << " : " << pid << endl; //success
     if (kill(pid, SIGCONT) == SYS_FAIL) {
         this->err.PrintSysFailError("kill");
         free_args(args, num_args);
