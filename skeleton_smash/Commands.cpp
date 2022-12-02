@@ -333,7 +333,7 @@ void ForegroundCommand::execute() {
         return;
     } else {
         shell.setFgPID(pid);
-        shell.setFgCmd(this);
+        shell.setFgCmd(job_to_fg->getCmd());
         shell.setFgJobID(job_id_num);
         if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
             this->err.PrintSysFailError("waitpid");
@@ -567,7 +567,6 @@ void JobsList::addJob(Command *cmd, pid_t job_pid, bool isStopped, int job_id) {
             }
             i ++;
         }
-
     }
 
 }
@@ -770,12 +769,10 @@ void ExternalCommand::execute() {
 
     } else {
         pid_t pid = fork();
-
         if (pid == SYS_FAIL) {
             perror("fork");
             return;
         }
-
         if (pid == 0) { //son
             if (setpgrp() == SYS_FAIL) {
                 this->err.PrintSysFailError("setpgrp");
