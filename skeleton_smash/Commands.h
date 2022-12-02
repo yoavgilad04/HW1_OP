@@ -175,7 +175,7 @@ protected:
  public:
   JobsList() : jobs_vect(){};
   ~JobsList()=default;
-  void addJob(Command* cmd, pid_t job_pid, bool isStopped = false);
+  void addJob(Command* cmd, pid_t job_pid, bool isStopped = false, int job_id=-1);
   void printJobsList();
   void killAllJobs();
   void removeFinishedJobs();
@@ -255,6 +255,7 @@ private:
     JobsList* jobs_list;
     string prompt = "smash> ";
     pid_t  fg_pid;
+    int fg_job_id;
     Command * fg_cmd;
     bool is_pipe = false;
 public:
@@ -270,6 +271,8 @@ public:
     }
     ~SmallShell();
     void executeCommand(const char* new_prompt);
+    void setFgJobID(int job_id){this->fg_job_id = job_id;}
+    int getFgJobID(){return this->fg_job_id;}
     pid_t  getFgPID(){return this->fg_pid;}
     void setFgPID(pid_t  pid){this->fg_pid = pid;}
     Command * getFgCmd(){return this->fg_cmd;}

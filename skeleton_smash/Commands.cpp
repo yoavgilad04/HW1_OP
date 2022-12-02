@@ -334,6 +334,7 @@ void ForegroundCommand::execute() {
     } else {
         shell.setFgPID(pid);
         shell.setFgCmd(this);
+        shell.setFgJobID(job_id_num);
         if (waitpid(pid, nullptr, WCONTINUED) == SYS_FAIL) {
             this->err.PrintSysFailError("waitpid");
             free_args(args, num_args);
@@ -341,6 +342,7 @@ void ForegroundCommand::execute() {
         }
         shell.setFgPID(-1);
         shell.setFgCmd(nullptr);
+        shell.setFgJobID(-1);
     }
     jobs->removeJobById(job_id_num);
     free_args(args, num_args);
@@ -546,11 +548,28 @@ void SetCoreCommand::execute() {
  * Run in the Background &
  * Stopped Process
  */
-void JobsList::addJob(Command *cmd, pid_t job_pid, bool isStopped) {
+void JobsList::addJob(Command *cmd, pid_t job_pid, bool isStopped, int job_id) {
     removeFinishedJobs();
-    this->max_job_id++;
-    JobEntry *new_job = new JobEntry(this->max_job_id, job_pid, isStopped, cmd);
-    this->jobs_vect.push_back(new_job);
+    if (job_id = -1 || job_id > this->max_job_id)
+    {
+        this->max_job_id++;
+        JobEntry *new_job = new JobEntry(this->max_job_id, job_pid, isStopped, cmd);
+        this->jobs_vect.push_back(new_job);
+    }
+    else{
+        JobEntry *new_job = new JobEntry(job_id, job_pid, isStopped, cmd);
+        int i = 0;
+        for (auto  it : this->jobs_vect) {
+            if ((*it).getJobId() > job_id)
+            {
+                this->jobs_vect.insert(this->jobs_vect.begin() + i, new_job);
+                break;
+            }
+            i ++;
+        }
+
+    }
+
 }
 
 
@@ -743,6 +762,8 @@ void ExternalCommand::execute() {
                     }
                     shell.setFgPID(-1);
                     shell.setFgCmd(nullptr);
+                    shell.setFgJobID(-1);
+
                 }
             }
         }
@@ -775,6 +796,7 @@ void ExternalCommand::execute() {
                 }
                 shell.setFgCmd(nullptr);
                 shell.setFgPID(-1);
+                shell.setFgJobID(-1);
             }
         }
     }
