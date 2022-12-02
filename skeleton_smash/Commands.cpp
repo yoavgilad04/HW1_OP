@@ -335,7 +335,7 @@ void ForegroundCommand::execute() {
         shell.setFgPID(pid);
         shell.setFgCmd(this);
         shell.setFgJobID(job_id_num);
-        if (waitpid(pid, nullptr, WCONTINUED) == SYS_FAIL) {
+        if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
             this->err.PrintSysFailError("waitpid");
             free_args(args, num_args);
             return;
@@ -550,7 +550,7 @@ void SetCoreCommand::execute() {
  */
 void JobsList::addJob(Command *cmd, pid_t job_pid, bool isStopped, int job_id) {
     removeFinishedJobs();
-    if (job_id = -1 || job_id > this->max_job_id)
+    if (job_id == -1 || job_id > this->max_job_id)
     {
         this->max_job_id++;
         JobEntry *new_job = new JobEntry(this->max_job_id, job_pid, isStopped, cmd);
