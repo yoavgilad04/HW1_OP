@@ -340,11 +340,11 @@ void ForegroundCommand::execute() {
             free_args(args, num_args);
             return;
         }
+        jobs->removeJobById(job_id_num);
         shell.setFgPID(-1);
         shell.setFgCmd(nullptr);
         shell.setFgJobID(-1);
     }
-    jobs->removeJobById(job_id_num);
     free_args(args, num_args);
 }
 
@@ -452,6 +452,7 @@ void KillCommand::execute() {
 
     switch (signal_num) {
         case SIGCONT:
+            job->resume();
             jobs->removeJobById(job_id_num);
             break;
         case SIGINT:
@@ -489,8 +490,139 @@ void TimeoutCommand::execute() {
  * this command finds and replace every instance of word source to the word dest.
  * prints how many instances have been replaced.
 */
+FareCommand::FareCommand(const char* cmd_line): BuiltInCommand(cmd_line){
+    //TODO:remove & sign
+
+    char *args[COMMAND_ARGS_MAX_LENGTH];
+    int num_args = _parseCommandLine(this->getCommandLine(), args);
+    if (num_args != 4) {
+        this->err.PrintInvalidArgs("fare");
+        free_args(args, num_args);
+        is_success=false;
+        return;
+    }
+    is_success=true;
+    filename = (char *)malloc(strlen(args[1]));
+    strcpy(this->filename, args[1]);
+
+    source = (char * ) malloc(strlen(args[2]));
+    strcpy(this->source, args[2]);
+    destination = (char * ) malloc(strlen(args[3]));
+    strcpy(this->destination, args[3]);
+
+    free_args(args, num_args);
+
+}
+
+
 void FareCommand::execute() {
-    return;
+   if(!is_success) return;
+    //open file
+    fd = open(filename, O_RDONLY);
+    if (fd == SYS_FAIL) {
+        this->is_redir=false;
+        this->err.PrintSysFailError("open");
+        cleanup();
+        return;
+    }
+
+    //calc length and create buffer
+    ssize_t length=0;
+    char chr;
+    while (read(fd, &chr, 1) == 1) {
+        length++;
+    }
+    buff = (char *) malloc(length+1);
+
+    //read into buff
+    if(lseek(fd, 0, SEEK_SET)==SYS_FAIL){ //get back to the beginning
+        this->err.PrintSysFailError("lseek");
+        close(fd);
+        cleanup();
+        return;
+    }
+    if (read(fd, buff, length)==SYS_FAIL){
+        this->err.PrintSysFailError("read");
+        close(fd);
+        cleanup();
+        return;
+    }
+    buff[length]='\0';
+
+    close(fd);
+
+    //fare
+    int new_len, i, cnt = 0;
+    int src_len = strlen(source);
+    int dst_len = strlen(destination);
+
+    // Counting the number of times src in buff
+    for (i = 0; buff[i] != '\0'; i++) {
+        if (strstr(&buff[i], source) == &buff[i]) {
+            cnt++;
+
+            // Jumping to index after the old word.
+            i += src_len - 1;
+        }
+    }
+
+    // Making buff_replace of enough length
+    new_len= i + cnt * (dst_len-src_len) + 1;
+    buff_replace = (char*)malloc(new_len);
+
+    i = 0;
+    char * p = buff;
+    while (*p) {
+        // compare the substring with the result
+        if (strstr(p, source) == p) {
+            strcpy(&buff_replace[i], destination);
+            i += dst_len;
+            p += src_len;
+        }
+        else
+            buff_replace[i++] = *p++;
+    }
+    buff_replace[i] = '\0';
+
+
+    fd = open(filename, O_WRONLY | O_TRUNC);
+    if (fd == SYS_FAIL) {
+        this->err.PrintSysFailError("open");
+        cleanup();
+        return;
+    }
+
+    ssize_t write_length = write(fd,buff_replace, new_len);
+
+    //if write < length then restore file
+    if (write_length < new_len){
+        if(close(fd)==SYS_FAIL) {
+            this->err.PrintSysFailError("close");
+        }
+        if(open(filename, O_WRONLY | O_TRUNC)==SYS_FAIL){
+            this->err.PrintSysFailError("open");
+        }
+        if (write(fd, buff, length-1)==SYS_FAIL){
+            this->err.PrintSysFailError("write");
+        }
+    }
+    else{
+        cout<<"replaced "<<cnt<<" instances of the string \""<<source<<"\""<<endl;
+    }
+    close(fd);
+    cleanup();
+}
+
+void FareCommand::cleanup(){
+    if(is_redir){
+        //free buffs
+        free (buff);
+        free (buff_replace);
+    }
+    free(source);
+    free(destination);
+    free(filename);
+
 }
 
 /***SetcoreCommand implementation
@@ -622,13 +754,14 @@ void JobsList::killAllJobs() {
 /***removeFinishedJobs- this function removes all the finished jobs from JobList */
 void JobsList::removeFinishedJobs() {
     if (jobs_vect.empty()) {
+        max_job_id = 0;
         return;
     }
     pid_t job_p;
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
         job_p = (*it)->getJobPid();
         pid_t return_pid = waitpid(job_p, nullptr, WNOHANG);
-        if (return_pid == SYS_FAIL) return; //TODO: add error handler?
+        if (return_pid == SYS_FAIL) return;
         else if (return_pid == job_p) {
             jobs_vect.erase(it);
             it--;
@@ -665,40 +798,32 @@ void JobsList::removeJobById(int jobId) {
 
 /***getLastJob- this function returns the most recent (and not finished) job that was inserted to JobList. */
 JobsList::JobEntry *JobsList::getLastJob(int *lastJobId) {
-    for (auto it = jobs_vect.rbegin(); it != jobs_vect.rend(); it++) {
-        pid_t job_p = (*it)->getJobPid();
-        pid_t return_pid = waitpid(job_p, nullptr, WNOHANG);
-
-        if (return_pid == SYS_FAIL) return nullptr; //TODO: add error handler?
-        else if (!(job_p == return_pid)) {
-            *lastJobId = (*it)->getJobId();
-            return *it;
-        }
+    if(jobs_vect.empty()) {
+        *lastJobId=-1;
+        return nullptr;
     }
-    *lastJobId = -1;
-    return nullptr;
+
+    if(lastJobId) {
+        *lastJobId = jobs_vect.back()->getJobId();
+    }
+
+    return jobs_vect.back();
 }
 
 /***getLastStoppedJob- this function returns the most recent stopped job that was inserted to JobList. */
 JobsList::JobEntry *JobsList::getLastStoppedJob(int *jobId) {
     JobEntry *last_stopped = nullptr;
-//find last stopped and not finished job (reversed iterator)
-    for (auto it = jobs_vect.rbegin(); it != jobs_vect.rend(); it++) {
-        pid_t job_p = (*it)->getJobPid();
-        pid_t return_pid = waitpid(job_p, nullptr, WNOHANG);
+    *jobId = -1;
 
-        if (return_pid == SYS_FAIL) {//TODO: add error handler?
-            *jobId = -1;
-            return nullptr;
-        } else if ((*it)->isStopped() && job_p != return_pid) {
-            *jobId = (*it)->getJobId();
-            last_stopped = *it;
-            break;
+    for (JobEntry *it : jobs_vect) {
+        if (it->isStopped()) {
+            last_stopped = it;
+            *jobId = (*it).getJobId();
         }
     }
-    *jobId = -1;
     return last_stopped;
 }
+
 
 /***getEntryTime- this function returns returns entry_time of jobID*/
 time_t JobsList::getEntryTime(int jobId) {
@@ -997,6 +1122,7 @@ SmallShell::SmallShell() {
     this->jobs_list = new JobsList();
     this->p_last_dir = nullptr;
     this->fg_pid = -1;
+    this->fg_job_id=-1;
     this->fg_cmd = nullptr;
 }
 
@@ -1041,7 +1167,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     } else if (firstWord.compare("kill") == 0) {
         return new KillCommand(cmd_line, jobs_list);
     } else if (firstWord.compare("fare") == 0) {
-        //return new FareCommand(cmd_line);
+        return new FareCommand(cmd_line);
     } else if (firstWord.compare("setcore") == 0) {
         return new SetCoreCommand(cmd_line, jobs_list);
     } else {
