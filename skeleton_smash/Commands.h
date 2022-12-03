@@ -151,6 +151,8 @@ public:
         time_t enter_time;
         bool is_stopped;
         Command * cmd;
+        bool is_timeout;
+        double duration;
 
     public:
 
@@ -161,6 +163,9 @@ public:
         };
         ~JobEntry();
         bool isStopped(){return is_stopped;}
+        bool isTimemout(){return is_timeout;}
+        time_t getEnterTime(){return enter_time;}
+        doube getDuration(){return duration;}
         int getJobId(){return job_id;}
         time_t getEnterTime(){return enter_time;}
         Command * getCmd(){return cmd;}
@@ -175,6 +180,7 @@ protected:
  public:
   JobsList() : jobs_vect(){};
   ~JobsList()=default;
+  void checkTimeout();
   void addJob(Command* cmd, pid_t job_pid, bool isStopped = false, int job_id=-1);
   void printJobsList();
   void killAllJobs();
@@ -247,6 +253,7 @@ public:
     virtual ~KillCommand() {}
     void execute() override;
 };
+
 
 
 class SmallShell {

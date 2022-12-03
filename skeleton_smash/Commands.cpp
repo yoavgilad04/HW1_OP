@@ -479,6 +479,7 @@ void KillCommand::execute() {
  * this command sends an alarm for 'duration' seconds, runs the command on smash directly,
  * and when timed out sends SIGKILL.
 */
+
 void TimeoutCommand::execute() {
     return;
 }
@@ -591,6 +592,19 @@ void JobsList::printJobsList() {
         } else {
             cout << '[' << (*it)->getJobId() << "] " << (*it)->getCmd()->getCommandLine() << " : " << (*it)->getJobPid()
                  << ' ' << diff << " secs" << endl;
+        }
+    }
+}
+
+void JobsList::checkTimeout(){
+    removeFinishedJobs();
+    time_t current_time;
+    time(&current_time);
+    for (auto job : jobs_vect) {
+        if (job->isTimemout()){
+            if (difftime(current_time, job->getEnterTime())>= job->getDuration()){
+
+            }
         }
     }
 }
