@@ -497,10 +497,13 @@ FareCommand::FareCommand(const char* cmd_line): BuiltInCommand(cmd_line){
     if (num_args != 4) {
         this->err.PrintInvalidArgs("fare");
         free_args(args, num_args);
+        is_success=false;
         return;
     }
-
+    is_success=true;
+    filename = (char *)malloc(strlen(args[1]));
     strcpy(this->filename, args[1]);
+
     source = (char * ) malloc(strlen(args[2]));
     strcpy(this->source, args[2]);
     destination = (char * ) malloc(strlen(args[3]));
@@ -512,12 +515,14 @@ FareCommand::FareCommand(const char* cmd_line): BuiltInCommand(cmd_line){
 
 
 void FareCommand::execute() {
+   if(!is_success) return;
     //open file
-    fd = open(filename, O_RDONLY, 0655);
+    fd = open(filename, O_RDONLY);
     if (fd == SYS_FAIL) {
         this->is_redir=false;
         this->err.PrintSysFailError("open");
         cleanup();
+        return;
     }
 
     //calc length and create buffer
@@ -526,16 +531,20 @@ void FareCommand::execute() {
     while (read(fd, &chr, 1) == 1) {
         length++;
     }
-    buff = (char *) malloc(length);
+    buff = (char *) malloc(length+1);
 
     //read into buff
     if(lseek(fd, 0, SEEK_SET)==SYS_FAIL){ //get back to the beginning
         this->err.PrintSysFailError("lseek");
+        close(fd);
         cleanup();
+        return;
     }
     if (read(fd, buff, length)==SYS_FAIL){
         this->err.PrintSysFailError("read");
+        close(fd);
         cleanup();
+        return;
     }
     buff[length]='\0';
 
@@ -557,7 +566,8 @@ void FareCommand::execute() {
     }
 
     // Making buff_replace of enough length
-    buff_replace = (char*)malloc(i + cnt * (src_len - dst_len) + 1);
+    new_len= i + cnt * (dst_len-src_len) + 1;
+    buff_replace = (char*)malloc(new_len);
 
     i = 0;
     char * p = buff;
@@ -572,45 +582,46 @@ void FareCommand::execute() {
             buff_replace[i++] = *p++;
     }
     buff_replace[i] = '\0';
-    new_len=i;
 
 
-    fd = open(filename, O_WRONLY | O_TRUNC, 0655);
+    fd = open(filename, O_WRONLY | O_TRUNC);
     if (fd == SYS_FAIL) {
         this->err.PrintSysFailError("open");
         cleanup();
+        return;
     }
 
-    //write buffer_rep to file
-    if(lseek(fd, 0, SEEK_SET)==SYS_FAIL) {
-        this->err.PrintSysFailError("lseek");
-    }
     ssize_t write_length = write(fd,buff_replace, new_len);
 
     //if write < length then restore file
     if (write_length < new_len){
-        if(lseek(fd, 0, SEEK_SET)==SYS_FAIL) {
-            this->err.PrintSysFailError("lseek");
+        if(close(fd)==SYS_FAIL) {
+            this->err.PrintSysFailError("close");
         }
-        if (write(fd, buff, write_length)==SYS_FAIL){
+        if(open(filename, O_WRONLY | O_TRUNC)==SYS_FAIL){
+            this->err.PrintSysFailError("open");
+        }
+        if (write(fd, buff, length-1)==SYS_FAIL){
             this->err.PrintSysFailError("write");
         }
     }
     else{
         cout<<"replaced "<<cnt<<" instances of the string \""<<source<<"\""<<endl;
     }
-
+    close(fd);
     cleanup();
 }
+
 void FareCommand::cleanup(){
     if(is_redir){
         //free buffs
         free (buff);
         free (buff_replace);
-        close(fd);
     }
     free(source);
     free(destination);
+    free(filename);
+
 }
 
 /***SetcoreCommand implementation

@@ -222,13 +222,14 @@ public:
 };
 
 class FareCommand : public BuiltInCommand {
-    char filename[PATH_MAX];
+    char *filename;
     char *source;
     char *destination;
     bool is_redir=true;
     char * buff;
     char * buff_replace;
     int fd;
+    bool is_success;
 
 public:
     FareCommand(const char* cmd_line);
