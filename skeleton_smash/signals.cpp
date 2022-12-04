@@ -5,6 +5,7 @@
 using namespace std;
 
 void ctrlZHandler(int sig_num) {
+    cout << "smash: got ctrl-Z" << endl ;
     SmallShell &shell = SmallShell::getInstance();
     pid_t fg_pid = shell.getFgPID();
     Command* fg_cmd = shell.getFgCmd();
@@ -12,7 +13,6 @@ void ctrlZHandler(int sig_num) {
     if (fg_pid == -1 || fg_cmd == nullptr){
         return;
     }
-    cout << "smash: got ctrl-Z" << endl ;
     if (kill(fg_pid, SIGSTOP) == -1){
         perror("smash error: kill failed");
         return;
@@ -26,12 +26,12 @@ void ctrlZHandler(int sig_num) {
 }
 
 void ctrlCHandler(int sig_num) {
+    cout << "smash: got ctrl-C" << endl ;
     SmallShell &shell = SmallShell::getInstance();
     if (shell.getFgPID() == -1 || shell.getFgCmd() == nullptr){
         return;
     }
     else{
-        cout << "smash: got ctrl-C" << endl ;
         pid_t fg_pid = shell.getFgPID();
         if (kill(fg_pid, SIGINT) == -1){
             perror("smash error: kill failed");

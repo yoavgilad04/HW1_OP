@@ -50,11 +50,14 @@ class Command {
 protected:
     const char* cmd_line;
     SmashErrors err;
+    bool is_in_list;
     char** setUpArgs(char*** args, const char * cmd_line, string * cmd, int *args_num = nullptr);
 public:
-    Command(const char* cmd_line){
+    Command(const char* cmd_line) {
         this->cmd_line = strdup(cmd_line);
+        this->is_in_list = false;
     }
+    Command(const Command& c) {this->cmd_line = strdup(c.cmd_line);}
     virtual ~Command(){ delete(this->cmd_line);};
     virtual void execute() = 0;
     //virtual void prepare();
@@ -62,6 +65,8 @@ public:
     /***Our Own Methods*/
     const char * getCommandLine(){return cmd_line;}
     std::string getCommand();
+    bool isInList(){return this->is_in_list;}
+    void setIsInList(bool is){this->is_in_list = is;}
 };
 
 class BuiltInCommand : public Command {
@@ -76,6 +81,10 @@ class ExternalCommand : public Command {
 public:
     ExternalCommand(const char* cmd_line, int duration, bool is_timeout): Command(cmd_line), duration(duration),
     is_timeout(is_timeout){};
+    ExternalCommand(ExternalCommand& c): Command(c){
+        this->is_timeout = c.is_timeout;
+        this->duration = c.duration;
+    }
     virtual ~ExternalCommand() {}
     void execute() override;
 };

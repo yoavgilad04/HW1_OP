@@ -335,12 +335,12 @@ void ForegroundCommand::execute() {
         shell.setFgPID(pid);
         shell.setFgCmd(job_to_fg->getCmd());
         shell.setFgJobID(job_id_num);
+        jobs->removeJobById(job_id_num);
         if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
             this->err.PrintSysFailError("waitpid");
             free_args(args, num_args);
             return;
         }
-        jobs->removeJobById(job_id_num);
         shell.setFgPID(-1);
         shell.setFgCmd(nullptr);
         shell.setFgJobID(-1);
@@ -713,7 +713,7 @@ void SetCoreCommand::execute() {
  */
 void JobsList::addJob(Command *cmd, pid_t job_pid, bool isStopped, int job_id) {
     removeFinishedJobs();
-//    Command* copy_cmd = new ExternalCommand(cmd);
+    cmd->setIsInList(true);
     if (job_id == -1 || job_id > this->max_job_id)
     {
         this->max_job_id++;
@@ -783,6 +783,7 @@ void JobsList::removeFinishedJobs() {
         pid_t return_pid = waitpid(job_p, nullptr, WNOHANG);
         if (return_pid == SYS_FAIL) return;
         else if (return_pid == job_p) {
+            delete (*it);
             jobs_vect.erase(it);
             it--;
         }
@@ -810,6 +811,7 @@ JobsList::JobEntry *JobsList::getJobById(int jobId) {
 void JobsList::removeJobById(int jobId) {
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
         if ((*it)->getJobId() == jobId) {
+            (*it)->getCmd()->setIsInList(false);
             jobs_vect.erase(it);
             return;
         }
@@ -1249,3 +1251,5 @@ void SmallShell::executeCommand(const char *cmd_line, int duration, bool is_time
     cmd->execute();
     delete cmd;
 }
+
+
