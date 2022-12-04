@@ -274,7 +274,7 @@ void QuitCommand::execute() {
     bool is_loud = false;
     if (num > 1) {
         if (strcmp((args[1]), "kill") == 0) {
-            cout << "smash: sending SIGKILL signal to " << jobs->getCurrJobsNum() << " jobs:" << endl;
+            cout << "smash: sending SIGKILL signal to " << jobs->getCurrJobsNum() << " jobs:\r" << endl;
             jobs->killAllJobs();
         }
     }
@@ -335,12 +335,12 @@ void ForegroundCommand::execute() {
         shell.setFgPID(pid);
         shell.setFgCmd(job_to_fg->getCmd());
         shell.setFgJobID(job_id_num);
+        jobs->removeJobById(job_id_num);
         if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
             this->err.PrintSysFailError("waitpid");
             free_args(args, num_args);
             return;
         }
-        jobs->removeJobById(job_id_num);
         shell.setFgPID(-1);
         shell.setFgCmd(nullptr);
         shell.setFgJobID(-1);
@@ -1171,3 +1171,5 @@ void SmallShell::executeCommand(const char *cmd_line) {
     }
     cmd->execute();
 }
+
+
