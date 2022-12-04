@@ -46,5 +46,13 @@ void ctrlCHandler(int sig_num) {
 }
 
 void alarmHandler(int sig_num) {
-    // TODO: Add your implementation
+    SmallShell &shell = SmallShell::getInstance();
+    TimeoutEntry * timeout = shell.getTimeoutList()->setAlarm();
+    if (timeout == nullptr) {
+        return;
+    }
+    cout<< "smash: got an alarm" << endl;
+    cout <<"smash: "<<timeout->getCommandLine() << "timed out!" << endl;
+    delete timeout;
+    shell.getTimeoutList()->setAlarm();
 }

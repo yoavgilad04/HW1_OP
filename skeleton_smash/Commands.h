@@ -71,8 +71,11 @@ public:
 };
 
 class ExternalCommand : public Command {
+    bool is_timeout;
+    int duration;
 public:
-    ExternalCommand(const char* cmd_line): Command(cmd_line){};
+    ExternalCommand(const char* cmd_line, int duration, bool is_timeout): Command(cmd_line), duration(duration),
+    is_timeout(is_timeout){};
     virtual ~ExternalCommand() {}
     void execute() override;
 };
@@ -151,23 +154,19 @@ public:
         time_t enter_time;
         bool is_stopped;
         Command * cmd;
-        bool is_timeout;
-        double duration;
+
+
 
     public:
 
         JobEntry(int job_id, pid_t job_pid, bool is_stopped, Command * cmd):
                 job_id(job_id), job_pid(job_pid), is_stopped(is_stopped),cmd(cmd) {
             time(&this->enter_time);
-
         };
         ~JobEntry();
         bool isStopped(){return is_stopped;}
-        bool isTimemout(){return is_timeout;}
         time_t getEnterTime(){return enter_time;}
-        doube getDuration(){return duration;}
         int getJobId(){return job_id;}
-        time_t getEnterTime(){return enter_time;}
         Command * getCmd(){return cmd;}
         pid_t getJobPid() {return job_pid;}
         void resume(){this->is_stopped=false;}
@@ -180,7 +179,6 @@ protected:
  public:
   JobsList() : jobs_vect(){};
   ~JobsList()=default;
-  void checkTimeout();
   void addJob(Command* cmd, pid_t job_pid, bool isStopped = false, int job_id=-1);
   void printJobsList();
   void killAllJobs();
@@ -192,6 +190,55 @@ protected:
   /*** our own methods ***/
   time_t getEntryTime(int jobId);
   int getCurrJobsNum(){return jobs_vect.size();}
+};
+
+class TimeoutEntry {
+    const char * cmd_line;
+    time_t enter_time;
+    int duration;
+    pid_t pid;
+public:
+    TimeoutEntry(const char * cmd_line,int duration, pid_t pid){
+        this->cmd_line = strdup(cmd_line);
+        time(&this->enter_time);
+        this->pid = pid;
+        this->duration = duration;
+    }
+    int getTimeLeft() {
+        time_t current = time(nullptr);
+        double time_passed = difftime(current, this->enter_time);
+        int time_left = this->duration - time_passed;
+        return time_left;
+    }
+    pid_t getPID(){return this->pid;}
+    const char* getCommandLine(){return this->cmd_line;}
+    ~TimeoutEntry(){
+        delete cmd_line;
+    }
+};
+
+class TimeoutList {
+    std::vector<TimeoutEntry*> timeouts;
+public:
+        TimeoutList(): timeouts(){}
+        TimeoutEntry * setAlarm(); // This function will loop over the list and check the closest alarm to sent
+        void add(const char* cmd_line, int duration, pid_t pid){
+            TimeoutEntry * new_timeout = new TimeoutEntry(cmd_line, duration, pid);
+            this->timeouts.push_back(new_timeout);
+        }
+        void remove(TimeoutEntry* timeout) {
+            for (auto it = timeouts.begin(); it != timeouts.end(); it++) {
+                if ((*it) == timeout) {
+                    timeouts.erase(it);
+                    return;
+                }
+            }
+        }
+        ~TimeoutList(){
+            for (auto it = timeouts.begin(); it != timeouts.end(); it++){
+                delete (*it);
+            }
+        }
 };
 
 class JobsCommand : public BuiltInCommand {
@@ -218,11 +265,11 @@ public:
     void execute() override;
 };
 
-class TimeoutCommand : public BuiltInCommand {
+class TimeoutCommand : public Command {
 /* Optional */
 // TODO: Add your data members
 public:
-    explicit TimeoutCommand(const char* cmd_line);
+    explicit TimeoutCommand(const char* cmd_line):Command(cmd_line){};
     virtual ~TimeoutCommand() {}
     void execute() override;
 };
@@ -268,6 +315,7 @@ class SmallShell {
 private:
     char* p_last_dir;
     JobsList* jobs_list;
+    TimeoutList* timeout_list;
     string prompt = "smash> ";
     pid_t  fg_pid;
     int fg_job_id;
@@ -275,7 +323,7 @@ private:
     bool is_pipe = false;
 public:
     SmallShell();
-    Command *CreateCommand(const char* cmd_line);
+    Command *CreateCommand(const char* cmd_line,int duration=-1, bool is_timeout=false);
     SmallShell(SmallShell const&)      = delete; // disable copy ctor
     void operator=(SmallShell const&)  = delete; // disable = operator
     static SmallShell& getInstance() // make SmallShell singleton
@@ -285,7 +333,7 @@ public:
         return instance;
     }
     ~SmallShell();
-    void executeCommand(const char* new_prompt);
+    void executeCommand(const char* new_prompt,int duration=-1, bool is_timeout=false);
     void setFgJobID(int job_id){this->fg_job_id = job_id;}
     int getFgJobID(){return this->fg_job_id;}
     pid_t  getFgPID(){return this->fg_pid;}
@@ -295,6 +343,7 @@ public:
     void ChangePrompt(const string new_prompt);
     string GetPrompt(){return prompt;}
     JobsList * GetJobList(){return jobs_list;}
+    TimeoutList* getTimeoutList(){return this->timeout_list;}
 };
 
 

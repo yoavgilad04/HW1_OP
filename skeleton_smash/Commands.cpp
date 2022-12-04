@@ -480,9 +480,39 @@ void KillCommand::execute() {
  * this command sends an alarm for 'duration' seconds, runs the command on smash directly,
  * and when timed out sends SIGKILL.
 */
+string removeTwoFirstWords(char* args[], int num_args)
+{
+    string str;
+    for(int i=2; i<num_args; i++){
+        str.append(args[i]);
+           str.append(" ");
+    }
+    return str;
+}
 
 void TimeoutCommand::execute() {
-    return;
+    char *args[COMMAND_ARGS_MAX_LENGTH];
+    string cmd = this->getCommand();
+    int num_args = _parseCommandLine(this->getCommandLine(), args);
+    if (num_args < 3){
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
+    }
+    if(!is_an_integer(args[1])){
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
+    }
+    //todo: checking if the first arguments is timeout
+    int duration = stoi(args[1]);
+    //check the command type (External, Pipe, Redirection...)
+    //if External:
+    SmallShell &shell = SmallShell::getInstance();
+    string cmd_line_without_timeout = removeTwoFirstWords(args, num_args);
+    shell.executeCommand(cmd_line_without_timeout.c_str(), duration, true);
+    free_args(args, num_args);
+
 }
 
 
@@ -728,25 +758,13 @@ void JobsList::printJobsList() {
     }
 }
 
-void JobsList::checkTimeout(){
-    removeFinishedJobs();
-    time_t current_time;
-    time(&current_time);
-    for (auto job : jobs_vect) {
-        if (job->isTimemout()){
-            if (difftime(current_time, job->getEnterTime())>= job->getDuration()){
-
-            }
-        }
-    }
-}
 
 /***killAllJobs- this function kills all the jobs that currently in JobList */
 void JobsList::killAllJobs() {
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); ++it) {
         cout << (*it)->getJobPid() << ": " << (*it)->getCmd()->getCommandLine() << endl;
 
-        //cout << "smash: process " << (*it)->getJobPid() << " was killed" << endl;
+//        cout << "smash: process " << (*it)->getJobPid() << " was killed" << endl;
         kill((*it)->getJobPid(), SIGKILL);
     }
 }
@@ -840,6 +858,37 @@ void JobsCommand::execute() {
     this->jobs->printJobsList();
 }
 
+
+
+/***______________TimeoutList class implemention--------------***/
+TimeoutEntry * TimeoutList::setAlarm() {
+    if (this->timeouts.empty())
+        return nullptr;
+    int min = timeouts.front()->getTimeLeft();
+    TimeoutEntry * min_timeout = timeouts.front();
+    for (auto it = timeouts.begin(); it != timeouts.end(); it++) {
+        pid_t pid = (*it)->getPID();
+        pid_t return_pid = waitpid(pid, nullptr, WNOHANG);
+        if (return_pid == pid || return_pid == SYS_FAIL){
+            this->remove(*it);
+            delete *it;
+        }
+
+        if ((*it)->getTimeLeft() < min){
+        min = (*it)->getTimeLeft();
+        min_timeout = (*it);
+        }
+    }
+    if (min<=0) {
+        this->remove(min_timeout);
+        return min_timeout;
+    }
+    else{
+        alarm(min);
+    }
+    return nullptr;
+}
+
 /***--------------External Command implementation--------------***/
 
 /*** ExternalCommand implementation
@@ -888,10 +937,15 @@ void ExternalCommand::execute() {
                 return;
             } else { // pid != 0 Parent code
                 child_pid = pid;
+                if (this->is_timeout){
+                    shell.getTimeoutList()->add(this->getCommandLine(), this->duration, pid);
+                    shell.getTimeoutList()->setAlarm();
+                }
                 if (is_background) {
                     shell.GetJobList()->addJob(this, child_pid, false);
                 }
                 else{
+                    shell.setFgJobID(-1);
                     shell.setFgPID(child_pid);
                     shell.setFgCmd(this);
                     if (waitpid(child_pid, nullptr, WUNTRACED) == SYS_FAIL) {
@@ -901,7 +955,6 @@ void ExternalCommand::execute() {
                     shell.setFgPID(-1);
                     shell.setFgCmd(nullptr);
                     shell.setFgJobID(-1);
-
                 }
             }
         }
@@ -922,6 +975,10 @@ void ExternalCommand::execute() {
                 return;
             }
         } else { //father
+            if (this->is_timeout){
+                shell.getTimeoutList()->add(this->getCommandLine(), this->duration, pid);
+                shell.getTimeoutList()->setAlarm();
+            }
             if (is_background) {
                 shell.GetJobList()->addJob(this, pid, false);
             } else {
@@ -1120,6 +1177,7 @@ void SmallShell::ChangePrompt(string new_prompt) {
 
 SmallShell::SmallShell() {
     this->jobs_list = new JobsList();
+    this->timeout_list = new TimeoutList();
     this->p_last_dir = nullptr;
     this->fg_pid = -1;
     this->fg_job_id=-1;
@@ -1133,7 +1191,7 @@ SmallShell::~SmallShell() {
 /**
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
 */
-Command *SmallShell::CreateCommand(const char *cmd_line) {
+Command *SmallShell::CreateCommand(const char *cmd_line, int duration, bool is_timeout) {
 
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
@@ -1170,16 +1228,19 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
         return new FareCommand(cmd_line);
     } else if (firstWord.compare("setcore") == 0) {
         return new SetCoreCommand(cmd_line, jobs_list);
-    } else {
-        return new ExternalCommand(cmd_line);
+    } else if (firstWord.compare("timeout") == 0){
+        return new TimeoutCommand(cmd_line);
+    }
+    else {
+        return new ExternalCommand(cmd_line, duration, is_timeout);
     }
 
     return nullptr;
 }
 
-void SmallShell::executeCommand(const char *cmd_line) {
+void SmallShell::executeCommand(const char *cmd_line, int duration, bool is_timeout) {
     jobs_list->removeFinishedJobs();
-    Command *cmd = CreateCommand(cmd_line);
+    Command *cmd = CreateCommand(cmd_line, duration, is_timeout);
     if (cmd == nullptr) { //if unrecognized command was entered
         return;
     }
