@@ -51,6 +51,7 @@ void alarmHandler(int sig_num) {
     if (timeout == nullptr) {
         return;
     }
+    kill(timeout->getPID(), SIGKILL);
     cout<< "smash: got an alarm" << endl;
     cout <<"smash: "<<timeout->getCommandLine() << "timed out!" << endl;
     delete timeout;
