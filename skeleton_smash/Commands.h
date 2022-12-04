@@ -47,8 +47,8 @@ public:
 };
 
 class Command {
-    const char* cmd_line;
 protected:
+    const char* cmd_line;
     SmashErrors err;
     char** setUpArgs(char*** args, const char * cmd_line, string * cmd, int *args_num = nullptr);
 public:
@@ -154,16 +154,15 @@ public:
         time_t enter_time;
         bool is_stopped;
         Command * cmd;
-
-
-
     public:
 
         JobEntry(int job_id, pid_t job_pid, bool is_stopped, Command * cmd):
                 job_id(job_id), job_pid(job_pid), is_stopped(is_stopped),cmd(cmd) {
             time(&this->enter_time);
         };
-        ~JobEntry();
+        ~JobEntry(){
+            delete this->cmd;
+        }
         bool isStopped(){return is_stopped;}
         time_t getEnterTime(){return enter_time;}
         int getJobId(){return job_id;}

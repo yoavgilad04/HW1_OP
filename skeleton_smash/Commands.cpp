@@ -208,7 +208,6 @@ void GetCurrDirCommand::execute() {
         return;
     } else {
         cout << curr_path << endl;
-        free
         return;
     }
 }
@@ -714,6 +713,7 @@ void SetCoreCommand::execute() {
  */
 void JobsList::addJob(Command *cmd, pid_t job_pid, bool isStopped, int job_id) {
     removeFinishedJobs();
+//    Command* copy_cmd = new ExternalCommand(cmd);
     if (job_id == -1 || job_id > this->max_job_id)
     {
         this->max_job_id++;
@@ -767,6 +767,7 @@ void JobsList::killAllJobs() {
 
 //        cout << "smash: process " << (*it)->getJobPid() << " was killed" << endl;
         kill((*it)->getJobPid(), SIGKILL);
+        delete (*it);
     }
 }
 
@@ -869,10 +870,10 @@ TimeoutEntry * TimeoutList::setAlarm() {
     TimeoutEntry * min_timeout = timeouts.front();
     for (auto it = timeouts.begin(); it != timeouts.end(); it++) {
         pid_t pid = (*it)->getPID();
-        pid_t return_pid = waitpid(pid, nullptr, WNOHANG);
+        pid_t return_pid = waitpid(pid, nullptr, WNOHANG); //if the job was finished
         if (return_pid == pid || return_pid == SYS_FAIL){
             this->remove(*it);
-            delete *it;
+            delete (*it);
         }
 
         if ((*it)->getTimeLeft() < min){
@@ -1187,6 +1188,7 @@ SmallShell::SmallShell() {
 
 SmallShell::~SmallShell() {
     delete jobs_list;
+    delete timeout_list;
 }
 
 /**
