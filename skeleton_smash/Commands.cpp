@@ -459,7 +459,7 @@ void KillCommand::execute() {
             jobs->removeJobById(job_id_num);
             break;
         case SIGQUIT:
-
+            break;
         case SIGABRT:
             ///whattttt tooo dooooo???
             break;
@@ -1249,7 +1249,8 @@ void SmallShell::executeCommand(const char *cmd_line, int duration, bool is_time
         return;
     }
     cmd->execute();
-    delete cmd;
+    if(!cmd->isInList())
+        delete cmd;
 }
 
 
