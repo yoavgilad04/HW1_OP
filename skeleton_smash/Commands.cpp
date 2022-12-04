@@ -193,6 +193,7 @@ void Chprompt::execute() { //TODO: ADD ERRORS
     } else {
         shell.ChangePrompt(args[1]);
     }
+    free_args(args, num_args);
 }
 
 
@@ -231,6 +232,7 @@ void ChangeDirCommand::execute() {
 
     if (getcwd(p_current, (size_t) PATH_MAX) == NULL) {
         this->err.PrintSysFailError("getcwd");
+        free_args(args, num_args);
         return;
     }
     if (strcmp(args[1], makaf) == 0) // second argument is -
@@ -278,6 +280,7 @@ void QuitCommand::execute() {
             jobs->killAllJobs();
         }
     }
+    free_args(args, num);
     //jobs->killAllJobs(is_loud);
     delete this;
     exit(0);
@@ -471,8 +474,9 @@ void KillCommand::execute() {
             break;
         default:
             break;
-            //todo: add more cases and think how to act for each sig
+//todo: add more cases and think how to act for each sig
     }
+    free_args(args, num_args);
 
 }
 
@@ -880,8 +884,8 @@ TimeoutEntry * TimeoutList::setAlarm() {
         }
 
         if ((*it)->getTimeLeft() < min){
-        min = (*it)->getTimeLeft();
-        min_timeout = (*it);
+            min = (*it)->getTimeLeft();
+            min_timeout = (*it);
         }
     }
     if (min<=0) {
