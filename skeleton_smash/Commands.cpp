@@ -874,8 +874,9 @@ TimeoutEntry * TimeoutList::setAlarm() {
         pid_t pid = (*it)->getPID();
         pid_t return_pid = waitpid(pid, nullptr, WNOHANG); //if the job was finished
         if (return_pid == pid || return_pid == SYS_FAIL){
-            this->remove(*it);
             delete (*it);
+            timeouts.erase(it);
+            it--;
         }
 
         if ((*it)->getTimeLeft() < min){

@@ -238,6 +238,7 @@ public:
             for (auto it = timeouts.begin(); it != timeouts.end(); it++) {
                 if ((*it) == timeout) {
                     timeouts.erase(it);
+                    it--;
                     return;
                 }
             }
