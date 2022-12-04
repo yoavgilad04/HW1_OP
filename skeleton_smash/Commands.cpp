@@ -274,7 +274,7 @@ void QuitCommand::execute() {
     bool is_loud = false;
     if (num > 1) {
         if (strcmp((args[1]), "kill") == 0) {
-            cout << "smash: sending SIGKILL signal to " << jobs->getCurrJobsNum() << " jobs:\r" << endl;
+            cout << "smash: sending SIGKILL signal to " << jobs->getCurrJobsNum() << " jobs:" << endl;
             jobs->killAllJobs();
         }
     }
