@@ -208,6 +208,7 @@ void GetCurrDirCommand::execute() {
         return;
     } else {
         cout << curr_path << endl;
+        free
         return;
     }
 }
@@ -1234,7 +1235,6 @@ Command *SmallShell::CreateCommand(const char *cmd_line, int duration, bool is_t
     else {
         return new ExternalCommand(cmd_line, duration, is_timeout);
     }
-
     return nullptr;
 }
 
@@ -1245,4 +1245,5 @@ void SmallShell::executeCommand(const char *cmd_line, int duration, bool is_time
         return;
     }
     cmd->execute();
+    delete cmd;
 }
