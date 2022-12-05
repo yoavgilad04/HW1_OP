@@ -76,15 +76,8 @@ public:
 };
 
 class ExternalCommand : public Command {
-    bool is_timeout;
-    int duration;
 public:
-    ExternalCommand(const char* cmd_line, int duration, bool is_timeout): Command(cmd_line), duration(duration),
-    is_timeout(is_timeout){};
-    ExternalCommand(ExternalCommand& c): Command(c){
-        this->is_timeout = c.is_timeout;
-        this->duration = c.duration;
-    }
+    ExternalCommand(const char* cmd_line): Command(cmd_line){};
     virtual ~ExternalCommand() {}
     void execute() override;
 };
@@ -276,11 +269,15 @@ public:
 
 class TimeoutCommand : public Command {
 /* Optional */
-// TODO: Add your data members
+    TimeoutList* timeouts;
+    JobsList * jobs;
+    int duration;
 public:
-    explicit TimeoutCommand(const char* cmd_line):Command(cmd_line){};
+    explicit TimeoutCommand(const char* cmd_line, TimeoutList* timeouts, JobsList* jobs)
+    :Command(cmd_line), timeouts(timeouts), jobs(jobs){};
     virtual ~TimeoutCommand() {}
     void execute() override;
+    void executeExternal(const char* cmd_line);
 };
 
 class FareCommand : public BuiltInCommand {
@@ -332,7 +329,7 @@ private:
     bool is_pipe = false;
 public:
     SmallShell();
-    Command *CreateCommand(const char* cmd_line,int duration=-1, bool is_timeout=false);
+    Command *CreateCommand(const char* cmd_line);
     SmallShell(SmallShell const&)      = delete; // disable copy ctor
     void operator=(SmallShell const&)  = delete; // disable = operator
     static SmallShell& getInstance() // make SmallShell singleton
@@ -342,7 +339,7 @@ public:
         return instance;
     }
     ~SmallShell();
-    void executeCommand(const char* new_prompt,int duration=-1, bool is_timeout=false);
+    void executeCommand(const char* new_prompt);
     void setFgJobID(int job_id){this->fg_job_id = job_id;}
     int getFgJobID(){return this->fg_job_id;}
     pid_t  getFgPID(){return this->fg_pid;}
