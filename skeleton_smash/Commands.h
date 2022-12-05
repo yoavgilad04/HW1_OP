@@ -242,6 +242,7 @@ public:
                 delete (*it);
             }
         }
+        void removeTimeoutByPID(pid_t pid);
 };
 
 class JobsCommand : public BuiltInCommand {
