@@ -52,6 +52,7 @@ void alarmHandler(int sig_num) {
     if (timeout == nullptr) {
         return;
     }
+    shell.getTimeoutList()->removeByPID(timeout->getPID());
     kill(timeout->getPID(), SIGKILL);
     cout <<"smash: "<<timeout->getCommandLine() << " timed out!" << endl;
     delete timeout;
