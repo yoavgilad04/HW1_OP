@@ -186,6 +186,7 @@ protected:
   void removeFinishedJobs();
   JobEntry * getJobById(int jobId);
   void removeJobById(int jobId);
+  void removeJobByPID(int pid);
   JobEntry * getLastJob(int* lastJobId);
   JobEntry *getLastStoppedJob(int *jobId);
   /*** our own methods ***/

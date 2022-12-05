@@ -882,7 +882,8 @@ void JobsList::removeFinishedJobs() {
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
         job_p = (*it)->getJobPid();
         pid_t return_pid = waitpid(job_p, nullptr, WNOHANG);
-         if (return_pid == job_p || return_pid == SYS_FAIL) {
+        if (return_pid == SYS_FAIL) return;
+        else if (return_pid == job_p) {
             delete (*it);
             jobs_vect.erase(it);
             it--;
@@ -911,6 +912,16 @@ JobsList::JobEntry *JobsList::getJobById(int jobId) {
 void JobsList::removeJobById(int jobId) {
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
         if ((*it)->getJobId() == jobId) {
+            (*it)->getCmd()->setIsInList(false);
+            jobs_vect.erase(it);
+            return;
+        }
+    }
+}
+
+void JobsList::removeJobByPID(int pid) {
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+        if ((*it)->getJobPid() == pid) {
             (*it)->getCmd()->setIsInList(false);
             jobs_vect.erase(it);
             return;
@@ -977,6 +988,8 @@ TimeoutEntry * TimeoutList::setAlarm() {
             if ((*it) == min_timeout){
                 min_timeout = nullptr;
             }
+            SmallShell &shell = SmallShell::getInstance();
+            shell.GetJobList()->removeJobByPID((*it)->getPID());
             delete (*it);
             timeouts.erase(it);
             it--;
