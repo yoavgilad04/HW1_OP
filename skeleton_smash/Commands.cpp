@@ -884,7 +884,7 @@ void JobsList::removeFinishedJobs() {
         pid_t return_pid = waitpid(job_p, nullptr, WNOHANG);
         if (return_pid == SYS_FAIL) return;
         else if (return_pid == job_p) {
-            delete (*it);
+//            delete (*it);
             jobs_vect.erase(it);
             it--;
         }
