@@ -75,8 +75,7 @@ public:
 
 class BuiltInCommand : public Command {
 public:
-    BuiltInCommand(const char *cmd_line) : Command(cmd_line) {};
-
+    BuiltInCommand(const char *cmd_line);
     virtual ~BuiltInCommand() {}
 };
 

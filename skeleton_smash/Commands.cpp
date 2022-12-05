@@ -184,6 +184,14 @@ string Command::getCommand() {
 /***--------------Build In Commands--------------***/
 
 
+
+BuiltInCommand::BuiltInCommand(const char* cmd_line): Command(cmd_line){
+    char* without = strdup(cmd_line);
+    _removeBackgroundSign(without);
+    delete this->cmd_line;
+    this->cmd_line = without;
+
+}
 void Chprompt::execute() { //TODO: ADD ERRORS
     SmallShell &shell = SmallShell::getInstance();
     char *args[PATH_MAX];
@@ -896,6 +904,7 @@ void JobsList::removeFinishedJobs() {
                 SmallShell &shell = SmallShell::getInstance();
                 shell.getTimeoutList()->removeByPID((*it)->getJobPid());
             }
+            delete (*it);
             jobs_vect.erase(it);
             it--;
         }
@@ -1318,6 +1327,8 @@ SmallShell::~SmallShell() {
 /**
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
 */
+
+
 Command *SmallShell::CreateCommand(const char *cmd_line) {
 
     string cmd_s = _trim(string(cmd_line));
