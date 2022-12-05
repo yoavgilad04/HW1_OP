@@ -869,6 +869,7 @@ void JobsList::printJobsList() {
 
 /***killAllJobs- this function kills all the jobs that currently in JobList */
 void JobsList::killAllJobs() {
+    removeFinishedJobs();
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); ++it) {
         cout << (*it)->getJobPid() << ": " << (*it)->getCmd()->getCommandLine() << endl;
 
