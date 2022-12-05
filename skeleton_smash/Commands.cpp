@@ -568,8 +568,8 @@ void TimeoutCommand::executeExternal(const char *cmd_line_after) {
                 exit(0);
             } else { // pid != 0 Parent code
                 child_pid = pid;
-                    shell.getTimeoutList()->add(this->getCommandLine(), this->duration, pid);
-                    shell.getTimeoutList()->setAlarm()->getTimeLeft();
+                shell.getTimeoutList()->add(this->getCommandLine(), this->duration, pid);
+                shell.getTimeoutList()->setAlarm();
                 if (is_background) {
                     shell.GetJobList()->addJob(this, child_pid, false);
                 }
@@ -890,10 +890,9 @@ void JobsList::removeFinishedJobs() {
         pid_t return_pid = waitpid(job_p, nullptr, WNOHANG);
         if (return_pid == SYS_FAIL) return;
         else if (return_pid == job_p) {
-            if(((*it)->getCmd()->getCommand()).compare("timeout") == 0)
-            {
-                SmallShell& smash = SmallShell::getInstance();
-                smash.getTimeoutList()->removeTimeoutByPID((*it)->getJobPid());
+            if ((*it)->getCmd()->getCommand().compare("timeout")){
+                SmallShell &shell = SmallShell::getInstance();
+                shell.getTimeoutList()->removeByPID((*it)->getJobPid());
             }
             delete (*it);
             jobs_vect.erase(it);
@@ -1024,15 +1023,6 @@ TimeoutEntry * TimeoutList::setAlarm() {
     return nullptr;
 }
 
-void TimeoutList::removeTimeoutByPID(int pid) {
-    for (auto it = timeouts.begin(); it != timeouts.end(); it++) {
-        if ((*it)->getPID() == pid) {
-            timeouts.erase(it);
-            delete (*it);
-            return;
-        }
-    }
-}
 /***--------------External Command implementation--------------***/
 
 /*** ExternalCommand implementation
