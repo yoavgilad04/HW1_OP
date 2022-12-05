@@ -510,6 +510,12 @@ void TimeoutCommand::execute() {
     }
     //todo: checking if the first arguments is timeout
     this->duration = stoi(args[1]);
+    if(this->duration < 0 )
+    {
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
+    }
     string cmd_line_without_timeout = removeTwoFirstWords(args, num_args);
     this->executeExternal(cmd_line_without_timeout.c_str());
     free_args(args, num_args);
