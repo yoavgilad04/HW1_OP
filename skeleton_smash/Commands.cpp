@@ -454,6 +454,8 @@ void KillCommand::execute() {
     }
 
     switch (signal_num) {
+        case SIGHUP:
+            break;
         case SIGCONT:
             job->resume();
             jobs->removeJobById(job_id_num);
@@ -894,7 +896,6 @@ void JobsList::removeFinishedJobs() {
                 SmallShell &shell = SmallShell::getInstance();
                 shell.getTimeoutList()->removeByPID((*it)->getJobPid());
             }
-            delete (*it);
             jobs_vect.erase(it);
             it--;
         }
