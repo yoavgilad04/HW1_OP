@@ -42,7 +42,7 @@ string _trim(const std::string &s) {
 }
 
 
-int _parseCommandLine(const char *cmd_line, char **args) { ////!!!!!!! remember to free everytime calling this function
+int _parseCommandLine(const char *cmd_line, char **args) {
     FUNC_ENTRY()
     int i = 0;
     std::istringstream iss(_trim(string(cmd_line)).c_str());
@@ -117,18 +117,17 @@ bool is_valid_signal(string signal) {
     return true;
 }
 
-//todo: entering all utility functions to classes
 bool is_valid_core(string core_str) {
     if (!is_an_integer(core_str))
         return false;
 
     int number_of_cores = sysconf(_SC_NPROCESSORS_CONF);
     if (number_of_cores == SYS_FAIL) {
-        perror(" ");
+        perror("smash error: sysconf failed");
     }
     int core_num = stoi(core_str);
 
-    if (core_num > number_of_cores) //core given doesnt exists in computer
+    if (core_num >= number_of_cores || core_num<0) //core given doesnt exists in computer
         return false;
 
     return true;
@@ -179,7 +178,7 @@ BuiltInCommand::BuiltInCommand(const char* cmd_line): Command(cmd_line){
     this->cmd_line = without;
 
 }
-void Chprompt::execute() { //TODO: ADD ERRORS
+void Chprompt::execute() {
     SmallShell &shell = SmallShell::getInstance();
     char *args[PATH_MAX];
     int num_args = _parseCommandLine(this->getCommandLine(), args);
@@ -218,7 +217,6 @@ void ChangeDirCommand::execute() {
         return;
     }
     if (num_args == 1) {
-        /// todo: Taking care if only cd was written
         free_args(args, num_args);
         return;
     }
@@ -426,7 +424,7 @@ void KillCommand::execute() {
     signal_num = stoi(signal_without_makaf);
     string job_id = args[2];
     if (!is_an_integer(job_id)) {
-        this->err.PrintInvalidArgs(cmd); //todo: if job id isn't an integer should it be jobdoesntexits or syntax err
+        this->err.PrintInvalidArgs(cmd);
         free_args(args, num_args);
         return;
     }
@@ -459,7 +457,6 @@ void KillCommand::execute() {
         case SIGQUIT:
             break;
         case SIGABRT:
-            ///whattttt tooo dooooo???
             break;
         case SIGKILL:
             jobs->removeJobById(job_id_num);
@@ -469,7 +466,6 @@ void KillCommand::execute() {
             break;
         default:
             break;
-//todo: add more cases and think how to act for each sig
     }
     free_args(args, num_args);
 
@@ -503,7 +499,6 @@ void TimeoutCommand::execute() {
         free_args(args, num_args);
         return;
     }
-    //todo: checking if the first arguments is timeout
     this->duration = stoi(args[1]);
     if(this->duration < 0 )
     {
@@ -623,7 +618,6 @@ void TimeoutCommand::executeExternal(const char *cmd_line_after) {
  * prints how many instances have been replaced.
 */
 FareCommand::FareCommand(const char* cmd_line): BuiltInCommand(cmd_line){
-    //TODO:remove & sign
 
     char *args[COMMAND_ARGS_MAX_LENGTH];
     int num_args = _parseCommandLine(this->getCommandLine(), args);
@@ -780,7 +774,7 @@ void SetCoreCommand::execute() {
         return;
     }
     string core_str = args[2];
-    if (is_valid_core(core_str)) //check if the core given is valid
+    if (!is_valid_core(core_str)) //check if the core given is valid
     {
         this->err.PrintInvalidCore(cmd);
         free_args(args, num_args);
@@ -789,7 +783,7 @@ void SetCoreCommand::execute() {
     core_num = stoi(core_str);
     string job_id = args[1];
     if (!is_an_integer(job_id)) {
-        this->err.PrintInvalidArgs(cmd); //todo: if job id isn't an integer should it be jobdoesntexits or invalidargs
+        this->err.PrintInvalidArgs(cmd);
         free_args(args, num_args);
         return;
     }
@@ -804,7 +798,7 @@ void SetCoreCommand::execute() {
     CPU_ZERO(&my_set);
     CPU_SET(core_num, &my_set);
     pid_t job_pid = job->getJobPid();
-    if(sched_setaffinity(job_pid, sizeof(cpu_set_t), &my_set) == SYS_FAIL){
+    if(sched_setaffinity(job_pid, sizeof(my_set), &my_set) == SYS_FAIL){
         this->err.PrintSysFailError("sched_setaffinity");
         free_args(args, num_args);
         return;
@@ -1151,8 +1145,6 @@ PipeCommand::PipeCommand(const char *cmd_line) : Command(cmd_line) {
     cmd1 = _trim(cmd1);
     strcpy(command1, cmd1.c_str());
     strcpy(command2, cmd2.c_str());
-
-    //TODO: add function to extract cmd1,cmd2
 
 }
 
