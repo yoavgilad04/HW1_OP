@@ -64,19 +64,6 @@ void free_args(char **args, int args_size) {
     }
 }
 
-char **Command::setUpArgs(char ***args, const char *cmd_line, string *cmd, int *args_num) {
-    *cmd = this->getCommand();
-    if (args_num == nullptr)
-        return nullptr;
-    *args[COMMAND_ARGS_MAX_LENGTH]; //char**
-    *args_num = _parseCommandLine(this->getCommandLine(), *args);
-    return nullptr;
-}
-/*string Command::getCommand() {
-    string cmd_s = _trim(string(cmd_line));
-    string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
-    return firstWord;
-}*/
 
 /**
  * This function get a string and return rather the string can be
@@ -141,7 +128,7 @@ bool is_valid_core(string core_str) {
     }
     int core_num = stoi(core_str);
 
-    if (!core_num <= number_of_cores) //core given doesnt exists in computer
+    if (core_num > number_of_cores) //core given doesnt exists in computer
         return false;
 
     return true;
@@ -184,6 +171,14 @@ string Command::getCommand() {
 /***--------------Build In Commands--------------***/
 
 
+
+BuiltInCommand::BuiltInCommand(const char* cmd_line): Command(cmd_line){
+    char* without = strdup(cmd_line);
+    _removeBackgroundSign(without);
+    delete this->cmd_line;
+    this->cmd_line = without;
+
+}
 void Chprompt::execute() { //TODO: ADD ERRORS
     SmallShell &shell = SmallShell::getInstance();
     char *args[PATH_MAX];
@@ -193,6 +188,7 @@ void Chprompt::execute() { //TODO: ADD ERRORS
     } else {
         shell.ChangePrompt(args[1]);
     }
+    free_args(args, num_args);
 }
 
 
@@ -227,10 +223,11 @@ void ChangeDirCommand::execute() {
         return;
     }
     char *p_current = new char[PATH_MAX];
-    char *makaf = "-";
+    char makaf[2] = "-";
 
     if (getcwd(p_current, (size_t) PATH_MAX) == NULL) {
         this->err.PrintSysFailError("getcwd");
+        free_args(args, num_args);
         return;
     }
     if (strcmp(args[1], makaf) == 0) // second argument is -
@@ -271,14 +268,13 @@ void QuitCommand::execute() {
     string cmd_s = _trim(string(cmd_c));
     char *args[COMMAND_ARGS_MAX_LENGTH];
     int num = _parseCommandLine(this->getCommandLine(), args);
-    bool is_loud = false;
     if (num > 1) {
         if (strcmp((args[1]), "kill") == 0) {
-            cout << "smash: sending SIGKILL signal to " << jobs->getCurrJobsNum() << " jobs:\r" << endl;
+            cout << "smash: sending SIGKILL signal to " << jobs->getCurrJobsNum() << " jobs:" << endl;
             jobs->killAllJobs();
         }
     }
-    //jobs->killAllJobs(is_loud);
+    free_args(args, num);
     delete this;
     exit(0);
 }
@@ -451,6 +447,8 @@ void KillCommand::execute() {
     }
 
     switch (signal_num) {
+        case SIGHUP:
+            break;
         case SIGCONT:
             job->resume();
             jobs->removeJobById(job_id_num);
@@ -459,7 +457,7 @@ void KillCommand::execute() {
             jobs->removeJobById(job_id_num);
             break;
         case SIGQUIT:
-
+            break;
         case SIGABRT:
             ///whattttt tooo dooooo???
             break;
@@ -471,8 +469,9 @@ void KillCommand::execute() {
             break;
         default:
             break;
-            //todo: add more cases and think how to act for each sig
+//todo: add more cases and think how to act for each sig
     }
+    free_args(args, num_args);
 
 }
 
@@ -480,8 +479,142 @@ void KillCommand::execute() {
  * this command sends an alarm for 'duration' seconds, runs the command on smash directly,
  * and when timed out sends SIGKILL.
 */
+string removeTwoFirstWords(char* args[], int num_args)
+{
+    string str;
+    for(int i=2; i<num_args; i++){
+        str.append(args[i]);
+           str.append(" ");
+    }
+    return str;
+}
+
 void TimeoutCommand::execute() {
-    return;
+    char *args[COMMAND_ARGS_MAX_LENGTH];
+    string cmd = this->getCommand();
+    int num_args = _parseCommandLine(this->getCommandLine(), args);
+    if (num_args < 3){
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
+    }
+    if(!is_an_integer(args[1])){
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
+    }
+    //todo: checking if the first arguments is timeout
+    this->duration = stoi(args[1]);
+    if(this->duration < 0 )
+    {
+        this->err.PrintInvalidArgs(cmd);
+        free_args(args, num_args);
+        return;
+    }
+    string cmd_line_without_timeout = removeTwoFirstWords(args, num_args);
+    this->executeExternal(cmd_line_without_timeout.c_str());
+    free_args(args, num_args);
+
+    //check the command type (External, Pipe, Redirection...)
+    //if External:
+//    SmallShell &shell = SmallShell::getInstance();
+//    shell.executeCommand(cmd_line_without_timeout.c_str(), duration, true);
+}
+
+void TimeoutCommand::executeExternal(const char *cmd_line_after) {
+    bool is_background = _isBackgroundComamnd(this->getCommandLine());
+/***PARSER:*/
+    //remove &
+    string command_trim = _trim(cmd_line_after);
+    char command_copy[COMMAND_ARGS_MAX_LENGTH];
+    strcpy(command_copy, command_trim.c_str());
+    if (is_background) {
+        _removeBackgroundSign(command_copy);
+    }
+
+    //parse to args without &
+    char *args[COMMAND_ARGS_MAX_LENGTH];
+    int num_args = _parseCommandLine(command_copy, args);
+    args[num_args] = 0;
+
+    string cmd_s = _trim(string(cmd_line_after));
+
+    SmallShell &shell = SmallShell::getInstance();
+
+    if (cmd_s.find_first_of(COMPLEX_CHAR) != std::string::npos) {
+        //char *cmd_line = this->getCommandLineNoneConst();
+        char file_path[10]= "/bin/bash";
+        char flag[3] = "-c";
+        char *array_of_arg[] = {file_path, flag, command_copy, nullptr};
+
+        pid_t pid = fork();
+        pid_t child_pid;
+        if (pid == SYS_FAIL) {
+            this->err.PrintSysFailError("fork");
+            return;
+        }
+        if (pid == 0) {
+            if (setpgrp() == SYS_FAIL) {
+                this->err.PrintSysFailError("setpgrp");
+                exit(0);
+            }
+            if (execv(file_path, array_of_arg) == SYS_FAIL) {
+                this->err.PrintSysFailError("execv");
+                exit(0);
+            } else { // pid != 0 Parent code
+                child_pid = pid;
+                shell.getTimeoutList()->add(this->getCommandLine(), this->duration, pid);
+                shell.getTimeoutList()->setAlarm();
+                if (is_background) {
+                    shell.GetJobList()->addJob(this, child_pid, false);
+                }
+                else{
+                    shell.setFgJobID(-1);
+                    shell.setFgPID(child_pid);
+                    shell.setFgCmd(this);
+                    if (waitpid(child_pid, nullptr, WUNTRACED) == SYS_FAIL) {
+                        this->err.PrintSysFailError("waitpid");
+                        exit(0);
+                    }
+                    shell.setFgPID(-1);
+                    shell.setFgCmd(nullptr);
+                    shell.setFgJobID(-1);
+                }
+            }
+        }
+
+    } else {
+        pid_t pid = fork();
+        if (pid == SYS_FAIL) {
+            perror("fork");
+            return;
+        }
+        if (pid == 0) { //son
+            if (setpgrp() == SYS_FAIL) {
+                this->err.PrintSysFailError("setpgrp");
+                exit(0);
+            }
+            if (execvp(args[0], args) == SYS_FAIL) {
+                this->err.PrintSysFailError("execvp");
+                exit(0);
+            }
+        } else { //father
+            shell.getTimeoutList()->add(this->getCommandLine(), this->duration, pid);
+            shell.getTimeoutList()->setAlarm();
+            if (is_background) {
+                shell.GetJobList()->addJob(this, pid, false);
+            } else {
+                shell.setFgPID(pid);
+                shell.setFgCmd(this);
+                if (waitpid(pid, nullptr, WUNTRACED) == SYS_FAIL) {
+                    this->err.PrintSysFailError("waitpid");
+                }
+                shell.setFgCmd(nullptr);
+                shell.setFgPID(-1);
+                shell.setFgJobID(-1);
+            }
+        }
+    }
 }
 
 
@@ -689,6 +822,7 @@ void SetCoreCommand::execute() {
  */
 void JobsList::addJob(Command *cmd, pid_t job_pid, bool isStopped, int job_id) {
     removeFinishedJobs();
+    cmd->setIsInList(true);
     if (job_id == -1 || job_id > this->max_job_id)
     {
         this->max_job_id++;
@@ -734,13 +868,15 @@ void JobsList::printJobsList() {
     }
 }
 
+
 /***killAllJobs- this function kills all the jobs that currently in JobList */
 void JobsList::killAllJobs() {
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); ++it) {
         cout << (*it)->getJobPid() << ": " << (*it)->getCmd()->getCommandLine() << endl;
 
-        //cout << "smash: process " << (*it)->getJobPid() << " was killed" << endl;
+//        cout << "smash: process " << (*it)->getJobPid() << " was killed" << endl;
         kill((*it)->getJobPid(), SIGKILL);
+        delete (*it);
     }
 }
 
@@ -756,6 +892,11 @@ void JobsList::removeFinishedJobs() {
         pid_t return_pid = waitpid(job_p, nullptr, WNOHANG);
         if (return_pid == SYS_FAIL) return;
         else if (return_pid == job_p) {
+            if ((*it)->getCmd()->getCommand().compare("timeout")){
+                SmallShell &shell = SmallShell::getInstance();
+                shell.getTimeoutList()->removeByPID((*it)->getJobPid());
+            }
+            delete (*it);
             jobs_vect.erase(it);
             it--;
         }
@@ -783,6 +924,17 @@ JobsList::JobEntry *JobsList::getJobById(int jobId) {
 void JobsList::removeJobById(int jobId) {
     for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
         if ((*it)->getJobId() == jobId) {
+            (*it)->getCmd()->setIsInList(false);
+            jobs_vect.erase(it);
+            return;
+        }
+    }
+}
+
+void JobsList::removeJobByPID(int pid) {
+    for (auto it = jobs_vect.begin(); it != jobs_vect.end(); it++) {
+        if ((*it)->getJobPid() == pid) {
+            (*it)->getCmd()->setIsInList(false);
             jobs_vect.erase(it);
             return;
         }
@@ -833,6 +985,45 @@ void JobsCommand::execute() {
     this->jobs->printJobsList();
 }
 
+
+
+/***______________TimeoutList class implemention--------------***/
+TimeoutEntry * TimeoutList::setAlarm() {
+    if (this->timeouts.empty())
+        return nullptr;
+    int min = timeouts.front()->getTimeLeft();
+    TimeoutEntry * min_timeout = timeouts.front();
+    for (auto it = timeouts.begin(); it != timeouts.end(); it++) {
+        pid_t pid = (*it)->getPID();
+        pid_t return_pid = waitpid(pid, nullptr, WNOHANG); //if the job was finished
+        if (return_pid == pid || return_pid == SYS_FAIL){
+            if ((*it) == min_timeout){
+                min_timeout = nullptr;
+            }
+            SmallShell &shell = SmallShell::getInstance();
+            shell.GetJobList()->removeJobByPID((*it)->getPID());
+            timeouts.erase(it);
+            it--;
+        }
+        else{
+            if ((*it)->getTimeLeft() < min){
+                min = (*it)->getTimeLeft();
+                min_timeout = (*it);
+            }
+        }
+    }
+    if(min_timeout == nullptr){
+        setAlarm();
+    }
+    if (min<=0) {
+        return min_timeout;
+    }
+    else{
+        alarm(min);
+    }
+    return nullptr;
+}
+
 /***--------------External Command implementation--------------***/
 
 /*** ExternalCommand implementation
@@ -861,8 +1052,8 @@ void ExternalCommand::execute() {
 
     if (cmd_s.find_first_of(COMPLEX_CHAR) != std::string::npos) {
         //char *cmd_line = this->getCommandLineNoneConst();
-        char *file_path = "/bin/bash";
-        char *flag = "-c";
+        char file_path[10] = "/bin/bash";
+        char flag[3] = "-c";
         char *array_of_arg[] = {file_path, flag, command_copy, nullptr};
 
         pid_t pid = fork();
@@ -874,27 +1065,27 @@ void ExternalCommand::execute() {
         if (pid == 0) {
             if (setpgrp() == SYS_FAIL) {
                 this->err.PrintSysFailError("setpgrp");
-                return;
+                exit(0);
             }
             if (execv(file_path, array_of_arg) == SYS_FAIL) {
                 this->err.PrintSysFailError("execv");
-                return;
+                exit(0);
             } else { // pid != 0 Parent code
                 child_pid = pid;
                 if (is_background) {
                     shell.GetJobList()->addJob(this, child_pid, false);
                 }
                 else{
+                    shell.setFgJobID(-1);
                     shell.setFgPID(child_pid);
                     shell.setFgCmd(this);
                     if (waitpid(child_pid, nullptr, WUNTRACED) == SYS_FAIL) {
                         this->err.PrintSysFailError("waitpid");
-                        return;
+                        exit(0);
                     }
                     shell.setFgPID(-1);
                     shell.setFgCmd(nullptr);
                     shell.setFgJobID(-1);
-
                 }
             }
         }
@@ -908,11 +1099,11 @@ void ExternalCommand::execute() {
         if (pid == 0) { //son
             if (setpgrp() == SYS_FAIL) {
                 this->err.PrintSysFailError("setpgrp");
-                return;
+                exit(0);
             }
             if (execvp(args[0], args) == SYS_FAIL) {
                 this->err.PrintSysFailError("execvp");
-                return;
+                exit(0);
             }
         } else { //father
             if (is_background) {
@@ -1113,6 +1304,7 @@ void SmallShell::ChangePrompt(string new_prompt) {
 
 SmallShell::SmallShell() {
     this->jobs_list = new JobsList();
+    this->timeout_list = new TimeoutList();
     this->p_last_dir = nullptr;
     this->fg_pid = -1;
     this->fg_job_id=-1;
@@ -1121,11 +1313,14 @@ SmallShell::SmallShell() {
 
 SmallShell::~SmallShell() {
     delete jobs_list;
+    delete timeout_list;
 }
 
 /**
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
 */
+
+
 Command *SmallShell::CreateCommand(const char *cmd_line) {
 
     string cmd_s = _trim(string(cmd_line));
@@ -1163,10 +1358,12 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
         return new FareCommand(cmd_line);
     } else if (firstWord.compare("setcore") == 0) {
         return new SetCoreCommand(cmd_line, jobs_list);
-    } else {
+    } else if (firstWord.compare("timeout") == 0){
+        return new TimeoutCommand(cmd_line, timeout_list, jobs_list);
+    }
+    else {
         return new ExternalCommand(cmd_line);
     }
-
     return nullptr;
 }
 
@@ -1177,6 +1374,8 @@ void SmallShell::executeCommand(const char *cmd_line) {
         return;
     }
     cmd->execute();
+    if(!cmd->isInList())
+        delete cmd;
 }
 
 

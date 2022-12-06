@@ -51,5 +51,15 @@ void sigXfsz(int sig_num){
 
 
 void alarmHandler(int sig_num) {
-    // TODO: Add your implementation
+    cout<< "smash: got an alarm" << endl;
+    SmallShell &shell = SmallShell::getInstance();
+    TimeoutEntry * timeout = shell.getTimeoutList()->setAlarm();
+    if (timeout == nullptr) {
+        return;
+    }
+    shell.getTimeoutList()->removeByPID(timeout->getPID());
+    kill(timeout->getPID(), SIGKILL);
+    cout <<"smash: "<<timeout->getCommandLine() << " timed out!" << endl;
+    delete timeout;
+    shell.getTimeoutList()->setAlarm();
 }
