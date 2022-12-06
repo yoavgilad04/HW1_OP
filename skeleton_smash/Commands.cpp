@@ -590,18 +590,25 @@ void FareCommand::execute() {
         cleanup();
         return;
     }
+    new_len--;
+    ssize_t written=0;
+    int ret_val=0;
+    while((ret_val=write(fd, buff_replace+written, new_len-written))>0){
+        written+=ret_val;
+    }
 
-    ssize_t write_length = write(fd,buff_replace, new_len);
+    if(ret_val==SYS_FAIL || (ret_val==0 && written<new_len)){
+        this->err.PrintSysFailError("write");
 
-    //if write < length then restore file
-    if (write_length < new_len){
-        if(close(fd)==SYS_FAIL) {
+        //restore file
+
+        if (close(fd)==SYS_FAIL){
             this->err.PrintSysFailError("close");
         }
-        if(open(filename, O_WRONLY | O_TRUNC)==SYS_FAIL){
+        if (open(filename, O_WRONLY | O_TRUNC)==SYS_FAIL){
             this->err.PrintSysFailError("open");
         }
-        if (write(fd, buff, length-1)==SYS_FAIL){
+        if (write(fd, buff, length)==SYS_FAIL){
             this->err.PrintSysFailError("write");
         }
     }

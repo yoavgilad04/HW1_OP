@@ -45,6 +45,11 @@ void ctrlCHandler(int sig_num) {
 
 }
 
+void sigXfsz(int sig_num){
+    return;
+}
+
+
 void alarmHandler(int sig_num) {
     // TODO: Add your implementation
 }
